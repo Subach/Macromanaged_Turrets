@@ -313,10 +313,8 @@ local function check_config()
 	if UseBobsDefault == true and game.entity_prototypes["bob-sniper-turret-1"] ~= nil then
 		local BobsDefault = BobsDefault or {ammo = "piercing-bullet-magazine", count = 5}
 		for turret, entity in pairs(game.entity_prototypes) do
-			if entity.type == "ammo-turret" then
-				if string.match(turret, "bob%-") ~= nil then
-					turretlist[turret] = turretlist[turret] or BobsDefault
-				end
+			if entity.type == "ammo-turret" and string.match(turret, "bob%-") ~= nil then
+				turretlist[turret] = turretlist[turret] or BobsDefault
 			end
 		end
 	end
@@ -439,6 +437,7 @@ local function close_gui(player)
 				global.LogicTurrets[index]["custom-request"] = {ammo = ammo, count = count}
 			end
 			if request == nil or request.name == ammo and request.count ~= count then
+				logicturret[2].set_request_slot({name = ammo, count = count}, 1)
 				if logicturret[1].has_items_inside() then
 					local inv = logicturret[1].get_inventory(1)
 					for i = 1, #inv do
@@ -448,10 +447,9 @@ local function close_gui(player)
 						end
 					end
 				end
-				logicturret[2].set_request_slot({name = ammo, count = count}, 1)
 			elseif request.name ~= ammo then
-				fully_eject(logicturret)
 				logicturret[2].set_request_slot({name = ammo, count = count}, 1)
+				fully_eject(logicturret)
 			end
 		end
 	end
@@ -546,6 +544,7 @@ local function update_requests()
 						logicturret["custom-request"] = nil
 					end
 				elseif request == nil or request.name == ammo and request.count ~= count then
+					logicturret[2].set_request_slot({name = ammo, count = count}, 1)
 					if logicturret[1].has_items_inside() then
 						local inv = logicturret[1].get_inventory(1)
 						for i = 1, #inv do
@@ -555,10 +554,9 @@ local function update_requests()
 							end
 						end
 					end
-					logicturret[2].set_request_slot({name = ammo, count = count}, 1)
 				elseif request.name ~= ammo then
-					fully_eject(logicturret)
 					logicturret[2].set_request_slot({name = ammo, count = count}, 1)
+					fully_eject(logicturret)
 				end
 			else
 				if logicturret[2].has_items_inside() then
