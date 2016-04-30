@@ -351,7 +351,7 @@ local function open_gui(player)
 		local request_flow = root.add{type = "flow", name = "MMT-request", direction = "horizontal", style = "description_flow_style"}
 			request_flow.add{type = "checkbox", name = "MMT-ammo", style = "MMT-icon-"..request.name, state = true}
 			request_flow.add{type = "textfield", name = "MMT-count", style = "MMT-count", text = request.count}
-			request_flow.add{type = "button", name = "MMT-save", style = "MMT-save", caption = game.item_prototypes["MMT-gui-save"].localised_name}
+			request_flow.add{type = "button", name = "MMT-save", style = "MMT-save", caption = {"MMT-gui-save"}}
 end
 
 local function show_ammo_table(player_index, gui, request)
@@ -392,18 +392,20 @@ local function save_request(player, gui)
 		count = math.min(math.floor(count), game.item_prototypes[ammo].stack_size)
 	end
 	if ammo == "MMT-gui-empty" or count <= 0 then
-		if gui.parent["MMT-ammo"] ~= nil then
+		if gui.parent["MMT-ammo"] ~= nil and TurretGUI[player.index]["cashe"] ~= "MMT-gui-empty" then
 			gui.parent["MMT-ammo"]["MMT-icon-"..(TurretGUI[player.index]["cashe"])].style = "MMT-icon-"..TurretGUI[player.index]["cashe"]
 		end
 		TurretGUI[player.index]["request"] = "clear"
-		player.print(game.item_prototypes["MMT-gui-request-clear"].localised_name)
+		player.print({"MMT-gui-request-clear"})
 	else
 		if gui.parent["MMT-ammo"] ~= nil then
-			gui.parent["MMT-ammo"]["MMT-icon-"..(TurretGUI[player.index]["cashe"])].style = "MMT-icon-"..TurretGUI[player.index]["cashe"]
+			if TurretGUI[player.index]["cashe"] ~= "MMT-gui-empty" then
+				gui.parent["MMT-ammo"]["MMT-icon-"..(TurretGUI[player.index]["cashe"])].style = "MMT-icon-"..TurretGUI[player.index]["cashe"]
+			end
 			gui.parent["MMT-ammo"]["MMT-icon-"..ammo].style = "MMT-ocon-"..ammo
 		end
 		TurretGUI[player.index]["request"] = {ammo = ammo, count = count}
-		player.print(game.item_prototypes["MMT-gui-request-save"].localised_name)
+		player.print({"MMT-gui-request-save"})
 	end
 	TurretGUI[player.index]["cashe"] = ammo
 end
