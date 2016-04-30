@@ -145,6 +145,7 @@ local function onDeath(event)
 	end
 	table.remove(global.LogicTurrets, i)
 	if next(global.LogicTurrets) == nil then
+		global.Timer = -1
 		script.on_event(defines.events.on_tick, nil)
 	end
 end
@@ -175,6 +176,7 @@ local function onMined(event)
 	end
 	table.remove(global.LogicTurrets, i)
 	if next(global.LogicTurrets) == nil then
+		global.Timer = -1
 		script.on_event(defines.events.on_tick, nil)
 	end
 end
@@ -304,7 +306,7 @@ local function check_config()
 			turretlist[turret] = turretlist[turret] or LogisticTurret[turret]
 		end
 	end
-	local RemoteTurretConfig = RemoteTurretConfig or {}
+	local RemoteTurretConfig = RemoteTurretConfig
 	if AllowRemoteCalls ~= false and next(RemoteTurretConfig) ~= nil then
 		for turret, config in pairs(RemoteTurretConfig) do
 			turretlist[turret] = turretlist[turret] or config
@@ -342,10 +344,10 @@ end
 
 --GUI--
 local function open_gui(player)
-	local request = TurretGUI[player.index][1][2].get_request_slot(1) or {name = "MMT-gui-empty", count = 0}
+	local request = global.TurretGUI[player.index][1][2].get_request_slot(1) or {name = "MMT-gui-empty", count = 0}
 	local root = player.gui.center.add{type = "frame", name = "MMT-gui", direction = "vertical", style = "inner_frame_in_outer_frame_style"}
 		root.add{type = "flow", name = "MMT-title", direction = "horizontal", style = "flow_style"}
-			root["MMT-title"].add{type = "label", name = "MMT-name", style = "MMT-name", caption = TurretGUI[player.index][1][1].localised_name}
+			root["MMT-title"].add{type = "label", name = "MMT-name", style = "MMT-name", caption = global.TurretGUI[player.index][1][1].localised_name}
 			root["MMT-title"].add{type = "checkbox", name = "MMT-close", style = "checkbox_style", state = true}
 		root.add{type = "label", name = "MMT-text", style = "description_label_style", caption = game.item_prototypes[request.name].localised_name}
 		local request_flow = root.add{type = "flow", name = "MMT-request", direction = "horizontal", style = "description_flow_style"}
@@ -359,11 +361,11 @@ local function show_ammo_table(player_index, gui, request)
 		gui["MMT-ammo"].destroy()
 		return
 	end
-	local turret = TurretGUI[player_index][1][1].name
-	if TurretGUI[player_index]["cashe"] == nil then
-		TurretGUI[player_index]["cashe"] = request
+	local turret = global.TurretGUI[player_index][1][1].name
+	if global.TurretGUI[player_index]["cashe"] == nil then
+		global.TurretGUI[player_index]["cashe"] = request
 	else
-		request = TurretGUI[player_index]["cashe"]
+		request = global.TurretGUI[player_index]["cashe"]
 	end
 	local ammo_table = gui.add{type = "table", name = "MMT-ammo", colspan = 5, style = "slot_table_style"}
 		ammo_table.add{type = "checkbox", name = "MMT-icon-empty", style = "MMT-icon-MMT-gui-empty", state = true}
@@ -392,35 +394,41 @@ local function save_request(player, gui)
 		count = math.min(math.floor(count), game.item_prototypes[ammo].stack_size)
 	end
 	if ammo == "MMT-gui-empty" or count <= 0 then
-		if gui.parent["MMT-ammo"] ~= nil and TurretGUI[player.index]["cashe"] ~= "MMT-gui-empty" then
-			gui.parent["MMT-ammo"]["MMT-icon-"..(TurretGUI[player.index]["cashe"])].style = "MMT-icon-"..TurretGUI[player.index]["cashe"]
+		if gui.parent["MMT-ammo"] ~= nil and global.TurretGUI[player.index]["cashe"] ~= "MMT-gui-empty" then
+			gui.parent["MMT-ammo"]["MMT-icon-"..(global.TurretGUI[player.index]["cashe"])].style = "MMT-icon-"..global.TurretGUI[player.index]["cashe"]
 		end
-		TurretGUI[player.index]["request"] = "clear"
+		global.TurretGUI[player.index]["request"] = "clear"
 		player.print({"MMT-gui-request-clear"})
 	else
 		if gui.parent["MMT-ammo"] ~= nil then
-			if TurretGUI[player.index]["cashe"] ~= "MMT-gui-empty" then
-				gui.parent["MMT-ammo"]["MMT-icon-"..(TurretGUI[player.index]["cashe"])].style = "MMT-icon-"..TurretGUI[player.index]["cashe"]
+			if global.TurretGUI[player.index]["cashe"] ~= "MMT-gui-empty" then
+				gui.parent["MMT-ammo"]["MMT-icon-"..(global.TurretGUI[player.index]["cashe"])].style = "MMT-icon-"..global.TurretGUI[player.index]["cashe"]
 			end
 			gui.parent["MMT-ammo"]["MMT-icon-"..ammo].style = "MMT-ocon-"..ammo
 		end
-		TurretGUI[player.index]["request"] = {ammo = ammo, count = count}
+		global.TurretGUI[player.index]["request"] = {ammo = ammo, count = count}
 		player.print({"MMT-gui-request-save"})
 	end
-	TurretGUI[player.index]["cashe"] = ammo
+	global.TurretGUI[player.index]["cashe"] = ammo
 end
 
 local function close_gui(player)
 	if player.gui.center["MMT-gui"] == nil or not player.gui.center["MMT-gui"].valid then
+		if global.TurretGUI[player.index] ~= nil then
+			global.TurretGUI[player.index] = nil
+		end
 		return
-	elseif TurretGUI[player.index] == nil or not TurretGUI[player.index][1][1].valid or not TurretGUI[player.index][1][2].valid then
-		player.gui.center["MMT-gui"].destroy()
+	elseif global.TurretGUI[player.index] == nil or not global.TurretGUI[player.index][1][1].valid or not global.TurretGUI[player.index][1][2].valid then
+		if player.gui.center["MMT-gui"].valid then
+			player.gui.center["MMT-gui"].destroy()
+		end
+		global.TurretGUI[player.index] = nil
 		return
 	end
-	if TurretGUI[player.index]["request"] ~= nil then
-		local logicturret = TurretGUI[player.index][1]
-		local index = TurretGUI[player.index][2]
-		if TurretGUI[player.index]["request"] == "clear" then
+	if global.TurretGUI[player.index]["request"] ~= nil then
+		local logicturret = global.TurretGUI[player.index][1]
+		local index = global.TurretGUI[player.index][2]
+		if global.TurretGUI[player.index]["request"] == "clear" then
 			if logicturret[2].has_items_inside() then
 				local stash = insert_ammo(logicturret)
 				if stash.valid_for_read then
@@ -430,8 +438,8 @@ local function close_gui(player)
 			global.LogicTurrets[index]["custom-request"] = "clear"
 			logicturret[2].clear_request_slot(1)
 		else
-			local ammo = TurretGUI[player.index]["request"].ammo
-			local count = TurretGUI[player.index]["request"].count
+			local ammo = global.TurretGUI[player.index]["request"].ammo
+			local count = global.TurretGUI[player.index]["request"].count
 			local request = logicturret[2].get_request_slot(1)
 			if ammo == global.LogicTurretConfig[logicturret[1].name].ammo and count == global.LogicTurretConfig[logicturret[1].name].count then
 				global.LogicTurrets[index]["custom-request"] = nil
@@ -455,16 +463,22 @@ local function close_gui(player)
 			end
 		end
 	end
-	TurretGUI[player.index] = nil
+	global.TurretGUI[player.index] = nil
 	player.gui.center["MMT-gui"].destroy()
 end
 
 local function onGuiClick(event)
 	local player = game.players[event.player_index]
 	if player.gui.center["MMT-gui"] == nil or not player.gui.center["MMT-gui"].valid then
+		if global.TurretGUI[player.index] ~= nil then
+			global.TurretGUI[player.index] = nil
+		end
 		return
-	elseif TurretGUI[player.index] == nil or not TurretGUI[player.index][1][1].valid or not TurretGUI[player.index][1][2].valid then
-		player.gui.center["MMT-gui"].destroy()
+	elseif global.TurretGUI[player.index] == nil or not global.TurretGUI[player.index][1][1].valid or not global.TurretGUI[player.index][1][2].valid then
+		if player.gui.center["MMT-gui"].valid then
+			player.gui.center["MMT-gui"].destroy()
+		end
+		global.TurretGUI[player.index] = nil
 		return
 	end
 	local element = event.element
@@ -499,7 +513,7 @@ local function onPutItem(event)
 		return
 	elseif logicturret[1].valid and logicturret[2].valid then
 		close_gui(player)
-		TurretGUI[event.player_index] = {logicturret, index}
+		global.TurretGUI[event.player_index] = {logicturret, index}
 		open_gui(player)
 	end
 end
@@ -659,7 +673,7 @@ local function onStart(event)
 end
 
 local function onLoad()
-	TurretGUI = {}
+	global.TurretGUI = {}
 	RemoteTurretConfig = {}
 	remote.add_interface("Macromanaged_Turrets", {add_logistic_turret = add_logistic_turret})
 	script.on_event(defines.events.on_built_entity, onBuilt)
