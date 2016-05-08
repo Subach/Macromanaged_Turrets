@@ -15,7 +15,7 @@ data:extend(
 		picture =
 		{
 			filename = "__core__/graphics/empty.png",
-			priority = "low",
+			priority = "very-low",
 			width = 0,
 			height = 0
 		},

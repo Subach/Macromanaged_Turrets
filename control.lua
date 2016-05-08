@@ -211,31 +211,33 @@ end
 
 --Configuration--
 --Testing surface
-local function decorate_workshop(workshop)
+local function decorate_workshop(workshop, area)
 	if not game.surfaces[workshop.name].valid then
 		script.on_event(defines.events.on_chunk_generated, nil)
 		return
 	end
-	local nature = workshop.find_entities({{-16, -16}, {15, 15}})
+	local nature = workshop.find_entities(area)
 	for i = 1, #nature do
 		if nature[i].valid and nature[i].type ~= "player" then
 			nature[i].destroy()
 		end
 	end
 	local flooring = {}
-	for x = -16, 15 do
-		for y = -16, 15 do
+	for x = area.left_top.x, area.right_bottom.x do
+		for y = area.left_top.y, area.right_bottom.y do
 			local tile = {name = "concrete", position = {x, y}}
 			flooring[#flooring + 1] = tile
 		end
 	end
 	workshop.set_tiles(flooring)
-	script.on_event(defines.events.on_chunk_generated, nil)
+	if workshop.is_chunk_generated({-1, -1}) and workshop.is_chunk_generated({0, -1}) and workshop.is_chunk_generated({-1, 0}) and workshop.is_chunk_generated({0, 0}) then
+		script.on_event(defines.events.on_chunk_generated, nil)
+	end
 end
 
 local function onChunkGenerated(event)
 	if event.surface == game.surfaces["MMT-workshop"] then
-		decorate_workshop(event.surface)
+		decorate_workshop(event.surface, event.area)
 	end
 end
 
@@ -247,10 +249,11 @@ local function build_workshop()
 		terrain_segmentation = "very-low",
 		water = "none",
 		starting_area = "none",
-		width = 32,
-		height = 32,
+		width = 63,
+		height = 63,
 		peaceful_mode = true })
-	decorate_workshop(workshop)
+	local area = {left_top = {x = -32, y = -32}, right_bottom = {x = 32, y = 32}}
+	decorate_workshop(workshop, area)
 	workshop.request_to_generate_chunks({0, 0}, 1)
 	script.on_event(defines.events.on_chunk_generated, onChunkGenerated)
 	return workshop
