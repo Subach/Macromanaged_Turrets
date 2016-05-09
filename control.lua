@@ -16,17 +16,14 @@ local function add_logistics(turret)
 end
 
 local function lookup_turret(turret)
-	if next(global.LogicTurrets) ~= nil then
-		for i = 1, #global.LogicTurrets do
-			if global.LogicTurrets[i][1] == turret then
-				return global.LogicTurrets, i
-			end
-		end
-	end
-	if next(global.IdleLogicTurrets) ~= nil then
-		for i = 1, #global.IdleLogicTurrets do
-			if global.IdleLogicTurrets[i][1] == turret then
-				return global.IdleLogicTurrets, i
+	local lists = {global.LogicTurrets, global.IdleLogicTurrets}
+	for i = 1, #lists do
+		local list = lists[i]
+		if next(list) ~= nil then
+			for i = 1, #list do
+				if list[i][1] == turret then
+					return list, i
+				end
 			end
 		end
 	end
