@@ -5,6 +5,6 @@
 	"author": "Macros",
 	"homepage": "https://forums.factorio.com/viewtopic.php?f=93&t=24639",
 	"description": "Create turrets that request ammo from the logistic network.",
-	"dependencies": ["base >= 0.12.29", "? bobwarfare >= 0.12.9", "? autofill >= 1.3.13"],
+	"dependencies": ["base >= 0.12.29", "? autofill >= 1.3.13", "? bobwarfare >= 0.12.9"],
 	"license": "CC BY-NC 4.0"
 }

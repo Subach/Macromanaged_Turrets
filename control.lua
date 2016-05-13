@@ -19,11 +19,9 @@ local function lookup_turret(turret)
 	local lists = {global.LogicTurrets, global.IdleLogicTurrets}
 	for i = 1, #lists do
 		local list = lists[i]
-		if next(list) ~= nil then
-			for i = 1, #list do
-				if list[i][1] == turret then
-					return list, i
-				end
+		for i = 1, #list do
+			if list[i][1] == turret then
+				return list, i
 			end
 		end
 	end
@@ -39,8 +37,8 @@ end
 local function find_items_around(entity)
 	local collision = entity.prototype.collision_box or {left_top = {x = 0, y = 0}, right_bottom = {x = 0, y = 0}}
 	return entity.surface.find_entities_filtered{name = "item-on-ground", area = {
-		{entity.position.x - math.abs(collision.left_top.x) - 3, entity.position.y - math.abs(collision.left_top.y) - 3},
-		{entity.position.x + math.abs(collision.right_bottom.x) + 3, entity.position.y + math.abs(collision.right_bottom.y) + 3}}}
+		{x = entity.position.x - math.abs(collision.left_top.x) - 3, y = entity.position.y - math.abs(collision.left_top.y) - 3},
+		{x = entity.position.x + math.abs(collision.right_bottom.x) + 3, y = entity.position.y + math.abs(collision.right_bottom.y) + 3}}}
 end
 
 local function spill_stack(entity, stack)
@@ -84,15 +82,15 @@ local function fully_eject(logicturret)
 end
 
 local function is_idle(logicturret)
-	return logicturret[2].logistic_network == nil or
+	return (logicturret[2].logistic_network == nil or
 	((logicturret[1].has_items_inside() or not logicturret[2].has_items_inside()) and
-		logicturret[1].surface.find_nearest_enemy{position = logicturret[1].position, max_distance = logicturret[3], force = logicturret[1].force} == nil)
+		logicturret[1].surface.find_nearest_enemy{position = logicturret[1].position, max_distance = logicturret[3], force = logicturret[1].force} == nil))
 end
 
 --Event handlers--
 local function onTick(event)
 	local checkidle = event.tick % 30 == global.Timer
-	if checkidle then
+	if checkidle == true then
 		local list = global.IdleLogicTurrets
 		local count = global.IdleCounter
 		for i = #list - (count - 1), 1, -5 do
@@ -102,11 +100,9 @@ local function onTick(event)
 					logicturret[2].destroy()
 				end
 				table.remove(global.IdleLogicTurrets, i)
-			else
-				if not is_idle(logicturret) then
-					table.remove(global.IdleLogicTurrets, i)
-					global.LogicTurrets[#global.LogicTurrets + 1] = logicturret
-				end
+			elseif not is_idle(logicturret) == true then
+				global.LogicTurrets[#global.LogicTurrets + 1] = logicturret
+				table.remove(global.IdleLogicTurrets, i)
 			end
 		end
 		global.IdleCounter = (count % 5) + 1
@@ -120,26 +116,21 @@ local function onTick(event)
 				logicturret[2].destroy()
 			end
 			table.remove(global.LogicTurrets, i)
-		else
-			if checkidle then
-				if is_idle(logicturret) then
-					table.remove(global.LogicTurrets, i)
-					global.IdleLogicTurrets[#global.IdleLogicTurrets + 1] = logicturret
-				end
-			end
-			if not logicturret[1].has_items_inside() and logicturret[2].has_items_inside() then
-				insert_ammo(logicturret)
-			end
+		elseif checkidle == true and is_idle(logicturret) == true then
+			global.IdleLogicTurrets[#global.IdleLogicTurrets + 1] = logicturret
+			table.remove(global.LogicTurrets, i)
+		elseif not logicturret[1].has_items_inside() and logicturret[2].has_items_inside() then
+			insert_ammo(logicturret)
 		end
 	end
 	global.Counter = (count % 30) + 1
 end
 
-local function toggle_tick(on)
+local function toggle_timer(on)
 	if next(global.LogicTurrets) ~= nil or next(global.IdleLogicTurrets) ~= nil then
 		return
 	end
-	if on then
+	if on == true then
 		global.Counter = 1
 		global.IdleCounter = 1
 		global.Timer = math.random(30) - 1
@@ -169,7 +160,7 @@ local function onBuilt(event)
 	if logicturret == nil then
 		return
 	end
-	toggle_tick(true)
+	toggle_timer(true)
 	global.LogicTurrets[#global.LogicTurrets + 1] = logicturret
 end
 
@@ -184,7 +175,7 @@ local function onDeath(event)
 		t[i][2].destroy()
 	end
 	table.remove(t, i)
-	toggle_tick()
+	toggle_timer()
 end
 
 local function onMined(event)
@@ -214,7 +205,7 @@ local function onMined(event)
 			logicturret[2].destroy()
 		end
 		table.remove(t, i)
-		toggle_tick()
+		toggle_timer()
 	end
 end
 
@@ -240,7 +231,7 @@ local function onUnmarked(event)
 		if relogicturret == nil then
 			return
 		end
-		toggle_tick(true)
+		toggle_timer(true)
 		global.LogicTurrets[#global.LogicTurrets + 1] = relogicturret
 	else
 		local logicturret = t[i]
@@ -317,48 +308,48 @@ local function validate_ammo(turret, ammo)
 end
 
 local function validate_config(turret, ammo, count)
-	if turret == nil or ammo == nil or count == nil then
+	if turret == nil or ammo == nil or count == nil or not (type(turret) == "string" and type(ammo) == "string" and type(count) == "number") or count < 1 then
 		return nil, nil, nil
-	elseif global.LogicTurretConfig[turret] ~= nil and global.LogicTurretConfig[turret].ammo == ammo then
-		if global.LogicTurretConfig[turret].count == count then
-			return {ammo = ammo, count = count}, nil, nil
-		else
-			return {ammo = ammo, count = count}, nil, turret
-		end
 	end
-	if type(turret) == "string" and type(ammo) == "string" and type(count) == "number" and
-	game.entity_prototypes[turret] ~= nil and game.entity_prototypes[turret].type == "ammo-turret" and
-	game.item_prototypes[ammo] ~= nil and game.item_prototypes[ammo].type == "ammo" and
-	validate_ammo(turret, ammo) then
-		count = math.min(math.floor(count), game.item_prototypes[ammo].stack_size)
-		if count > 0 then
+	local config = nil
+	local NewTurret = nil
+	local UpdatedTurret = nil
+	if global.LogicTurretConfig[turret] ~= nil and global.LogicTurretConfig[turret].ammo == ammo then
+		if global.LogicTurretConfig[turret].count ~= count then
+			count = math.min(math.floor(count), game.item_prototypes[ammo].stack_size)
+			UpdatedTurret = true
+		end
+		config = {ammo = ammo, count = count}
+	elseif game.entity_prototypes[turret] ~= nil and game.entity_prototypes[turret].type == "ammo-turret" and
+		game.item_prototypes[ammo] ~= nil and game.item_prototypes[ammo].type == "ammo" and
+		validate_ammo(turret, ammo) == true then
 			if global.LogicTurretConfig[turret] == nil then
-				return {ammo = ammo, count = count}, turret, nil
+				NewTurret = true
 			else
-				return {ammo = ammo, count = count}, nil, turret
+				UpdatedTurret = true
 			end
-		end
+			count = math.min(math.floor(count), game.item_prototypes[ammo].stack_size)
+			config = {ammo = ammo, count = count}
 	end
-	return nil, nil, nil
+	return config, NewTurret, UpdatedTurret
 end
 
 local function check_config()
 	local turretlist = {}
 	local LogisticTurret = LogisticTurret or {}
-	if next(LogisticTurret) ~= nil then
-		for turret in pairs(LogisticTurret) do
-			turretlist[turret] = turretlist[turret] or LogisticTurret[turret]
-		end
+	for turret in pairs(LogisticTurret) do
+		turretlist[turret] = turretlist[turret] or LogisticTurret[turret]
 	end
 	local RemoteTurretConfig = RemoteTurretConfig
-	if AllowRemoteCalls ~= false and next(RemoteTurretConfig) ~= nil then
+	if AllowRemoteCalls ~= false then
 		for turret, config in pairs(RemoteTurretConfig) do
 			turretlist[turret] = turretlist[turret] or config
 		end
 	end
 	if UseBobsDefault == true and game.entity_prototypes["bob-sniper-turret-1"] ~= nil then
+		local entities = game.entity_prototypes
 		local BobsDefault = BobsDefault or {ammo = "piercing-bullet-magazine", count = 5}
-		for turret, entity in pairs(game.entity_prototypes) do
+		for turret, entity in pairs(entities) do
 			if entity.type == "ammo-turret" and string.match(turret, "bob%-") ~= nil then
 				turretlist[turret] = turretlist[turret] or BobsDefault
 			end
@@ -366,23 +357,12 @@ local function check_config()
 	end
 	local NewTurrets = {}
 	local UpdatedTurrets = {}
-	if next(turretlist) ~= nil then
-		for turret, config in pairs(turretlist) do
-			local a, b
-			turretlist[turret], a, b = validate_config(turret, config.ammo, config.count)
-			if a ~= nil then
-				NewTurrets[a] = true
-			end
-			if b ~= nil then
-				UpdatedTurrets[b] = true
-			end
-		end
+	for turret, config in pairs(turretlist) do
+		turretlist[turret], NewTurrets[turret], UpdatedTurrets[turret] = validate_config(turret, config.ammo, config.count)
 	end
-	if next(global.LogicTurretConfig) ~= nil then
-		for turret in pairs(global.LogicTurretConfig) do
-			if turretlist[turret] == nil then
-				UpdatedTurrets[turret] = true
-			end
+	for turret in pairs(global.LogicTurretConfig) do
+		if turretlist[turret] == nil then
+			UpdatedTurrets[turret] = true
 		end
 	end
 	global.LogicTurretConfig = turretlist
@@ -418,7 +398,7 @@ local function show_ammo_table(player_index, gui, request)
 		ammo_table.add{type = "checkbox", name = "MMT-icon-empty", style = "MMT-icon-MMT-gui-empty", state = true}
 		for i = 1, #global.IconSets[turret] do
 			local ammo = global.IconSets[turret][i]
-			if request ~= "MMT-gui-empty" and ammo == request then
+			if ammo == request and request ~= "MMT-gui-empty" then
 				ammo_table.add{type = "checkbox", name = "MMT-icon-"..ammo, style = "MMT-ocon-"..ammo, state = true}
 			else
 				ammo_table.add{type = "checkbox", name = "MMT-icon-"..ammo, style = "MMT-icon-"..ammo, state = true}
@@ -435,16 +415,12 @@ end
 local function save_request(player, gui)
 	local ammo = string.sub(gui["MMT-ammo"].style.name, 10)
 	local count = tonumber(gui["MMT-count"].text)
-	if count == nil then
-		return
-	else
-		count = math.min(math.floor(count), game.item_prototypes[ammo].stack_size)
-	end
-	if ammo == "MMT-gui-empty" or count <= 0 then
+	if ammo == "MMT-gui-empty" or count == nil or count < 1 then
 		if gui.parent["MMT-ammo"] ~= nil and global.TurretGUI[player.index]["cashe"] ~= "MMT-gui-empty" then
 			gui.parent["MMT-ammo"]["MMT-icon-"..(global.TurretGUI[player.index]["cashe"])].style = "MMT-icon-"..global.TurretGUI[player.index]["cashe"]
 		end
 		global.TurretGUI[player.index]["request"] = "clear"
+		global.TurretGUI[player.index]["cashe"] = "MMT-gui-empty"
 		player.print({"MMT-gui-request-clear"})
 	else
 		if gui.parent["MMT-ammo"] ~= nil then
@@ -453,10 +429,11 @@ local function save_request(player, gui)
 			end
 			gui.parent["MMT-ammo"]["MMT-icon-"..ammo].style = "MMT-ocon-"..ammo
 		end
+		count = math.min(math.floor(count), game.item_prototypes[ammo].stack_size)
 		global.TurretGUI[player.index]["request"] = {ammo = ammo, count = count}
+		global.TurretGUI[player.index]["cashe"] = ammo
 		player.print({"MMT-gui-request-save"})
 	end
-	global.TurretGUI[player.index]["cashe"] = ammo
 end
 
 local function close_gui(player)
@@ -493,7 +470,7 @@ local function close_gui(player)
 			else
 				t[i]["custom-request"] = {ammo = ammo, count = count}
 			end
-			if request == nil or request.name == ammo and request.count ~= count then
+			if request == nil or (request.name == ammo and request.count ~= count) then
 				logicturret[2].set_request_slot({name = ammo, count = count}, 1)
 				if logicturret[1].has_items_inside() then
 					local inv = logicturret[1].get_inventory(1)
@@ -549,16 +526,16 @@ local function onPutItem(event)
 	if player.cursor_stack == nil or not player.cursor_stack.valid_for_read or player.cursor_stack.name ~= "MMT-logistic-turret-remote" then
 		return
 	end
-	local turret = player.surface.find_entities_filtered{area = {event.position, event.position}, type = "ammo-turret", force = player.force}
-	if next(turret) == nil or global.LogicTurretConfig[turret[1].name] == nil or turret[1].to_be_deconstructed(player.force) then
+	local turret = player.surface.find_entities_filtered{area = {event.position, event.position}, type = "ammo-turret", force = player.force}[1]
+	if turret == nil or global.LogicTurretConfig[turret.name] == nil or turret.to_be_deconstructed(player.force) then
 		close_gui(player)
 		return
 	end
-	local t, i = lookup_turret(turret[1])
-	if t == nil then
+	local t, i = lookup_turret(turret)
+	if t == nil or not (t[i][1].valid and t[i][2].valid) then
 		close_gui(player)
 		return
-	elseif t[i][1].valid and t[i][2].valid then
+	else
 		close_gui(player)
 		global.TurretGUI[event.player_index] = {logicturret = t[i]}
 		open_gui(player)
@@ -572,10 +549,8 @@ local function make_iconsets()
 		if entity.type == "ammo-turret" then
 			ammoset[turret] = {}
 			for ammo, item in pairs(game.item_prototypes) do
-				if item.type == "ammo" and not item.has_flag("hidden") then
-					if validate_ammo(turret, ammo) then
-						ammoset[turret][#ammoset[turret] + 1] = ammo
-					end
+				if item.type == "ammo" and not item.has_flag("hidden") and validate_ammo(turret, ammo) == true then
+					ammoset[turret][#ammoset[turret] + 1] = ammo
 				end
 			end
 		end
@@ -592,7 +567,7 @@ end
 
 --Loader--
 local function update_requests(UpdatedTurrets)
-	if next(global.LogicTurrets) == nil and next(global.IdleLogicTurrets) == nil then
+	if next(UpdatedTurrets) == nil then
 		return
 	end
 	local lists = {global.LogicTurrets, global.IdleLogicTurrets}
@@ -623,7 +598,7 @@ local function update_requests(UpdatedTurrets)
 						if logicturret["custom-request"] ~= "clear" and logicturret["custom-request"].ammo == ammo and logicturret["custom-request"].count == count then
 							logicturret["custom-request"] = nil
 						end
-					elseif request == nil or request.name == ammo and request.count ~= count then
+					elseif request == nil or (request.name == ammo and request.count ~= count) then
 						logicturret[2].set_request_slot({name = ammo, count = count}, 1)
 						if logicturret[1].has_items_inside() then
 							local inv = logicturret[1].get_inventory(1)
@@ -645,13 +620,13 @@ local function update_requests(UpdatedTurrets)
 end
 
 local function find_turrets(NewTurrets)
-	if next(global.LogicTurretConfig) == nil then
+	if next(NewTurrets) == nil then
 		return
 	end
 	for _, surface in pairs(game.surfaces) do
 		for chunk in surface.get_chunks() do
 			if surface.is_chunk_generated({chunk.x, chunk.y}) then
-				local area = {{chunk.x * 32, chunk.y * 32}, {(chunk.x + 1) * 32, (chunk.y + 1) * 32}}
+				local area = {{x = chunk.x * 32, y = chunk.y * 32}, {x = (chunk.x + 1) * 32, y = (chunk.y + 1) * 32}}
 				for name in pairs(NewTurrets) do
 					for _, turret in pairs(surface.find_entities_filtered{area = area, name = name}) do
 						if lookup_turret(turret) == nil then
@@ -667,23 +642,29 @@ local function find_turrets(NewTurrets)
 	end
 end
 
-local function set_autofill()
+local function set_autofill(lists)
 	if remote.interfaces["af"] == nil or next(global.LogicTurretConfig) == nil then
 		return
 	end
 	local AutofillSets = {remote.call("af", "getItemArray", "ammo-bullets"), remote.call("af", "getItemArray", "ammo-rockets"), remote.call("af", "getItemArray", "ammo-shells")}
-	for turret, config in pairs(global.LogicTurretConfig) do
+	local turretlist = {}
+	for i = 1, #lists do
+		for turret in pairs(lists[i]) do
+			turretlist[turret] = global.LogicTurretConfig[turret]
+		end
+	end
+	for turret, config in pairs(turretlist) do
 		local ammo = config.ammo
 		local found = false
-		for i = 1, #AutofillSets do
-			for j = 1, #AutofillSets[i] do
-				if ammo == AutofillSets[i][j] then
-					ammo = AutofillSets[i]
+		for j = 1, #AutofillSets do
+			for k = 1, #AutofillSets[j] do
+				if ammo == AutofillSets[j][k] then
+					ammo = AutofillSets[j]
 					found = true
 					break
 				end
 			end
-			if found then
+			if found == true then
 				break
 			end
 		end
@@ -693,15 +674,9 @@ end
 
 local function onStart(event)
 	local NewTurrets, UpdatedTurrets = check_config()
-	if next(UpdatedTurrets) ~= nil or next(NewTurrets) ~= nil then
-		if next(UpdatedTurrets) ~= nil then
-			update_requests(UpdatedTurrets)
-		end
-		if next(NewTurrets) ~= nil then
-			find_turrets(NewTurrets)
-		end
-		set_autofill()
-	end
+	update_requests(UpdatedTurrets)
+	find_turrets(NewTurrets)
+	set_autofill({NewTurrets, UpdatedTurrets})
 	if next(global.IconSets) == nil then
 		make_iconsets()
 	end
@@ -748,14 +723,21 @@ local function onModChanges(data)
 	if data == nil or data.mod_changes == nil then
 		return
 	end
+	if data.mod_changes["autofill"] ~= nil then
+		local old_version = data.mod_changes["autofill"].old_version
+		local new_version = data.mod_changes["autofill"].new_version
+		if old_version == nil then
+			set_autofill({global.LogicTurretConfig})
+		end
+	end
 	if data.mod_changes["Macromanaged_Turrets"] ~= nil then
 		local old_version = data.mod_changes["Macromanaged_Turrets"].old_version
 		local new_version = data.mod_changes["Macromanaged_Turrets"].new_version
 		if old_version == nil then
 			onInit()
-		elseif old_version < "1.0.2" then
-			global.IdleLogicTurrets = {}
-			if next(global.LogicTurrets) ~= nil then
+		else
+			if old_version < "1.0.2" then
+				global.IdleLogicTurrets = {}
 				for i = 1, #global.LogicTurrets do
 					table.insert(global.LogicTurrets[i], 3, math.min(global.LogicTurrets[i][1].prototype.turret_range * 2.5, 100))
 				end
