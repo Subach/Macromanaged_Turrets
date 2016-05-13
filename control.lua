@@ -171,11 +171,23 @@ local function onDeath(event)
 	local t, i = lookup_turret(event.entity)
 	if t == nil then
 		return
-	elseif t[i][2].valid then
-		t[i][2].destroy()
+	else
+		local logicturret = t[i]
+		if logicturret[1].valid and logicturret[2].valid then
+			for player_index in pairs(global.TurretGUI) do
+				if logicturret[1] == global.TurretGUI[player_index].logicturret[1] then
+					local player = game.players[player_index]
+					if player.gui.center["MMT-gui"] ~= nil and player.gui.center["MMT-gui"].valid then
+						player.gui.center["MMT-gui"].destroy()
+					end
+					global.TurretGUI[player_index] = nil
+				end
+			end
+			logicturret[2].destroy()
+		end
+		table.remove(t, i)
+		toggle_timer()
 	end
-	table.remove(t, i)
-	toggle_timer()
 end
 
 local function onMined(event)
@@ -200,6 +212,15 @@ local function onMined(event)
 							player.surface.spill_item_stack(player.position, {name = stash.name, count = stash.count})
 						end
 					end
+				end
+			end
+			for player_index in pairs(global.TurretGUI) do
+				if logicturret[1] == global.TurretGUI[player_index].logicturret[1] then
+					local player = game.players[player_index]
+					if player.gui.center["MMT-gui"] ~= nil and player.gui.center["MMT-gui"].valid then
+						player.gui.center["MMT-gui"].destroy()
+					end
+					global.TurretGUI[player_index] = nil
 				end
 			end
 			logicturret[2].destroy()
@@ -244,7 +265,7 @@ end
 --Configuration--
 --Testing surface
 local function decorate_workshop(workshop, area)
-	if not game.surfaces[workshop.name].valid then
+	if game.surfaces[workshop.name] == nil or not game.surfaces[workshop.name].valid then
 		script.on_event(defines.events.on_chunk_generated, nil)
 		return
 	end
@@ -255,16 +276,14 @@ local function decorate_workshop(workshop, area)
 		end
 	end
 	local flooring = {}
-	for x = area.left_top.x, area.right_bottom.x do
-		for y = area.left_top.y, area.right_bottom.y do
+	for x = area.left_top.x, area.right_bottom.x - 1 do
+		for y = area.left_top.y, area.right_bottom.y - 1 do
 			local tile = {name = "concrete", position = {x, y}}
 			flooring[#flooring + 1] = tile
 		end
 	end
 	workshop.set_tiles(flooring)
-	if workshop.is_chunk_generated({-1, -1}) and workshop.is_chunk_generated({0, -1}) and workshop.is_chunk_generated({-1, 0}) and workshop.is_chunk_generated({0, 0}) then
-		script.on_event(defines.events.on_chunk_generated, nil)
-	end
+	script.on_event(defines.events.on_chunk_generated, nil)
 end
 
 local function onChunkGenerated(event)
@@ -281,12 +300,12 @@ local function build_workshop()
 		terrain_segmentation = "very-low",
 		water = "none",
 		starting_area = "none",
-		width = 63,
-		height = 63,
+		width = 1,
+		height = 1,
 		peaceful_mode = true})
-	local area = {left_top = {x = -32, y = -32}, right_bottom = {x = 32, y = 32}}
+	local area = {left_top = {x = 0, y = 0}, right_bottom = {x = 32, y = 32}}
 	decorate_workshop(workshop, area)
-	workshop.request_to_generate_chunks({0, 0}, 1)
+	workshop.request_to_generate_chunks({16, 16}, 0)
 	script.on_event(defines.events.on_chunk_generated, onChunkGenerated)
 	return workshop
 end
@@ -294,7 +313,7 @@ end
 --Sanititazion
 local function validate_ammo(turret, ammo)
 	local surface = build_workshop()
-	local position = surface.find_non_colliding_position(turret, {0, 0}, 0, 1)
+	local position = surface.find_non_colliding_position(turret, {16, 16}, 16, 1)
 	if position == nil then
 		return false
 	end
@@ -544,18 +563,18 @@ end
 
 --GUI Icons
 local function make_iconsets()
-	local ammoset = {}
+	local ammosets = {}
 	for turret, entity in pairs(game.entity_prototypes) do
 		if entity.type == "ammo-turret" then
-			ammoset[turret] = {}
+			ammosets[turret] = {}
 			for ammo, item in pairs(game.item_prototypes) do
 				if item.type == "ammo" and not item.has_flag("hidden") and validate_ammo(turret, ammo) == true then
-					ammoset[turret][#ammoset[turret] + 1] = ammo
+					ammosets[turret][#ammosets[turret] + 1] = ammo
 				end
 			end
 		end
 	end
-	global.IconSets = ammoset
+	global.IconSets = ammosets
 end
 
 --Remote interface--
@@ -677,8 +696,12 @@ local function onStart(event)
 	update_requests(UpdatedTurrets)
 	find_turrets(NewTurrets)
 	set_autofill({NewTurrets, UpdatedTurrets})
-	if next(global.IconSets) == nil then
-		make_iconsets()
+	for player_index in pairs(global.TurretGUI) do
+		local player = game.players[player_index]
+		if player.gui.center["MMT-gui"] ~= nil and player.gui.center["MMT-gui"].valid then
+			player.gui.center["MMT-gui"].destroy()
+		end
+		global.TurretGUI[player_index] = nil
 	end
 	if next(global.LogicTurretConfig) ~= nil then
 		script.on_event(defines.events.on_robot_built_entity, onBuilt)
@@ -704,7 +727,6 @@ local function onStart(event)
 end
 
 local function onLoad()
-	global.TurretGUI = {}
 	RemoteTurretConfig = {}
 	remote.add_interface("Macromanaged_Turrets", {add_logistic_turret = add_logistic_turret})
 	script.on_event(defines.events.on_built_entity, onBuilt)
@@ -712,10 +734,12 @@ local function onLoad()
 end
 
 local function onInit()
-	global.IconSets = {}
 	global.LogicTurretConfig = {}
 	global.LogicTurrets = {}
 	global.IdleLogicTurrets = {}
+	global.TurretGUI = {}
+	global.IconSets = {}
+	make_iconsets()
 	onLoad()
 end
 
