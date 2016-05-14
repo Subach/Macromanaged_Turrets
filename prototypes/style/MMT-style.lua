@@ -5,8 +5,9 @@ local function icon_base(x)
 		priority = "extra-high-no-scale",
 		width = 36,
 		height = 36,
+		shift = {10, 0},
 		x = x,
-		shift = {0, -10}
+		scale = 2.125
 	}
 end
 
@@ -52,6 +53,6 @@ data.raw["gui-style"]["default"]["MMT-icon-MMT-gui-empty"] =
 		priority = "extra-high-no-scale",
 		width = 0,
 		height = 0,
-		shift = {0, -10}
+		shift = {2, 0}
 	}
 }
