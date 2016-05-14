@@ -1,12 +1,25 @@
-local function icon_base(x) 
+local function close_icon_base(pos)
+	return
+	{
+		filename = "__core__/graphics/gui.png",
+		priority = "extra-high-no-scale",
+		width = 16,
+		height = 16,
+		x = pos,
+		y = 17,
+		scale = 0.9
+	}
+end
+
+local function item_icon_base(pos)
 	return
 	{
 		filename = "__core__/graphics/gui.png",
 		priority = "extra-high-no-scale",
 		width = 36,
 		height = 36,
+		x = pos,
 		shift = {10, 0},
-		x = x,
 		scale = 2
 	}
 end
@@ -48,36 +61,9 @@ data.raw["gui-style"]["default"]["MMT-save"] =
 data.raw["gui-style"]["default"]["MMT-close"] =
 {
 	type = "checkbox_style",
-	default_background =
-	{
-		filename = "__core__/graphics/gui.png",
-		priority = "extra-high-no-scale",
-		width = 16,
-		height = 16,
-		x = 43,
-		y = 17,
-		scale = 0.9
-	},
-	hovered_background =
-	{
-		filename = "__core__/graphics/gui.png",
-		priority = "extra-high-no-scale",
-		width = 16,
-		height = 16,
-		x = 60,
-		y = 17,
-		scale = 0.9
-	},
-	clicked_background =
-	{
-		filename = "__core__/graphics/gui.png",
-		priority = "extra-high-no-scale",
-		width = 16,
-		height = 16,
-		x = 77,
-		y = 17,
-		scale = 0.9
-	},
+	default_background = close_icon_base(43),
+	hovered_background = close_icon_base(60),
+	clicked_background = close_icon_base(77),
 	checked =
 	{
 		filename = "__core__/graphics/gui.png",
@@ -96,15 +82,14 @@ data.raw["gui-style"]["default"]["MMT-icon-MMT-gui-empty"] =
 	scalable = false,
 	width = 37,
 	height = 37,
-	default_background = icon_base(111),
-	hovered_background = icon_base(148),
-	clicked_background = icon_base(185),
+	default_background = item_icon_base(111),
+	hovered_background = item_icon_base(148),
+	clicked_background = item_icon_base(185),
 	checked =
 	{
 		filename = "__core__/graphics/empty.png",
 		priority = "extra-high-no-scale",
 		width = 0,
-		height = 0,
-		shift = {1, 0}
+		height = 0
 	}
 }
