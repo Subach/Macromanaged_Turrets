@@ -28,6 +28,18 @@ local function lookup_turret(turret)
 	return nil, nil
 end
 
+local function close_turret_gui(turret)
+	for player_index in pairs(global.TurretGUI) do
+		if turret == global.TurretGUI[player_index].logicturret[1] then
+			local player = game.players[player_index]
+			if player.gui.center["MMT-gui"] ~= nil and player.gui.center["MMT-gui"].valid then
+				player.gui.center["MMT-gui"].destroy()
+			end
+			global.TurretGUI[player_index] = nil
+		end
+	end
+end
+
 local function insert_ammo(logicturret)
 	local stash = logicturret[2].get_inventory(1)[1]
 	stash.count = stash.count - logicturret[1].insert({name = stash.name, count = stash.count})
@@ -170,15 +182,7 @@ local function onDeath(event)
 	else
 		local logicturret = t[i]
 		if logicturret[1].valid and logicturret[2].valid then
-			for player_index in pairs(global.TurretGUI) do
-				if logicturret[1] == global.TurretGUI[player_index].logicturret[1] then
-					local player = game.players[player_index]
-					if player.gui.center["MMT-gui"] ~= nil and player.gui.center["MMT-gui"].valid then
-						player.gui.center["MMT-gui"].destroy()
-					end
-					global.TurretGUI[player_index] = nil
-				end
-			end
+			close_turret_gui(logicturret[1])
 			logicturret[2].destroy()
 		end
 		table.remove(t, i)
@@ -210,15 +214,7 @@ local function onMined(event)
 					end
 				end
 			end
-			for player_index in pairs(global.TurretGUI) do
-				if logicturret[1] == global.TurretGUI[player_index].logicturret[1] then
-					local player = game.players[player_index]
-					if player.gui.center["MMT-gui"] ~= nil and player.gui.center["MMT-gui"].valid then
-						player.gui.center["MMT-gui"].destroy()
-					end
-					global.TurretGUI[player_index] = nil
-				end
-			end
+			close_turret_gui(logicturret[1])
 			logicturret[2].destroy()
 		end
 		table.remove(t, i)
@@ -233,8 +229,12 @@ local function onMarked(event)
 	local t, i = lookup_turret(event.entity)
 	if t == nil then
 		return
-	elseif t[i][2].valid then
-		t[i][2].clear_request_slot(1)
+	else
+		local logicturret = t[i]
+		if logicturret[1].valid and logicturret[2].valid then
+			close_turret_gui(logicturret[1])
+			logicturret[2].clear_request_slot(1)
+		end
 	end
 end
 
