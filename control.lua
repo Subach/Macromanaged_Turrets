@@ -130,14 +130,10 @@ local function toggle_timer(on)
 	if next(global.LogicTurrets) ~= nil or next(global.IdleLogicTurrets) ~= nil then
 		return
 	end
-	if on == true then
-		global.Counter = 1
-		global.IdleCounter = 1
+	if on then
 		global.Timer = math.random(30) - 1
 		script.on_event(defines.events.on_tick, onTick)
 	else
-		global.Counter = -1
-		global.IdleCounter = -1
 		global.Timer = -1
 		script.on_event(defines.events.on_tick, nil)
 	end
@@ -359,7 +355,6 @@ local function check_config()
 	for turret in pairs(LogisticTurret) do
 		turretlist[turret] = turretlist[turret] or LogisticTurret[turret]
 	end
-	local RemoteTurretConfig = RemoteTurretConfig
 	if AllowRemoteCalls ~= false then
 		for turret, config in pairs(RemoteTurretConfig) do
 			turretlist[turret] = turretlist[turret] or config
@@ -394,7 +389,7 @@ local function open_gui(player)
 	local root = player.gui.center.add{type = "frame", name = "MMT-gui", direction = "vertical", style = "inner_frame_in_outer_frame_style"}
 		root.add{type = "flow", name = "MMT-title", direction = "horizontal", style = "flow_style"}
 			root["MMT-title"].add{type = "label", name = "MMT-name", style = "MMT-name", caption = global.TurretGUI[player.index].logicturret[1].localised_name}
-			root["MMT-title"].add{type = "checkbox", name = "MMT-close", style = "checkbox_style", state = true}
+			root["MMT-title"].add{type = "checkbox", name = "MMT-close", style = "MMT-close", state = true}
 		root.add{type = "label", name = "MMT-text", style = "description_label_style", caption = game.item_prototypes[request.name].localised_name}
 		local request_flow = root.add{type = "flow", name = "MMT-request", direction = "horizontal", style = "description_flow_style"}
 			request_flow.add{type = "checkbox", name = "MMT-ammo", style = "MMT-icon-"..request.name, state = true}
@@ -413,7 +408,7 @@ local function show_ammo_table(player_index, gui, request)
 	else
 		request = global.TurretGUI[player_index]["cashe"]
 	end
-	local ammo_table = gui.add{type = "table", name = "MMT-ammo", colspan = 5, style = "slot_table_style"}
+	local ammo_table = gui.add{type = "table", name = "MMT-ammo", colspan = 5, style = "MMT-table"}
 		ammo_table.add{type = "checkbox", name = "MMT-icon-empty", style = "MMT-icon-MMT-gui-empty", state = true}
 		for i = 1, #global.IconSets[turret] do
 			local ammo = global.IconSets[turret][i]
@@ -692,10 +687,6 @@ local function set_autofill(lists)
 end
 
 local function onStart(event)
-	local NewTurrets, UpdatedTurrets = check_config()
-	update_requests(UpdatedTurrets)
-	find_turrets(NewTurrets)
-	set_autofill({NewTurrets, UpdatedTurrets})
 	for player_index in pairs(global.TurretGUI) do
 		local player = game.players[player_index]
 		if player.gui.center["MMT-gui"] ~= nil and player.gui.center["MMT-gui"].valid then
@@ -703,6 +694,10 @@ local function onStart(event)
 		end
 		global.TurretGUI[player_index] = nil
 	end
+	local NewTurrets, UpdatedTurrets = check_config()
+	update_requests(UpdatedTurrets)
+	find_turrets(NewTurrets)
+	set_autofill({NewTurrets, UpdatedTurrets})
 	if next(global.LogicTurretConfig) ~= nil then
 		script.on_event(defines.events.on_robot_built_entity, onBuilt)
 		script.on_event(defines.events.on_entity_died, onDeath)
@@ -714,13 +709,9 @@ local function onStart(event)
 		script.on_event(defines.events.on_put_item, onPutItem)
 	end
 	if next(global.LogicTurrets) ~= nil or next(global.IdleLogicTurrets) ~= nil then
-		global.Counter = 1
-		global.IdleCounter = 1
 		global.Timer = math.random(30) - 1
 		script.on_event(defines.events.on_tick, onTick)
 	else
-		global.Counter = -1
-		global.IdleCounter = -1
 		global.Timer = -1
 		script.on_event(defines.events.on_tick, nil)
 	end
@@ -739,6 +730,9 @@ local function onInit()
 	global.IdleLogicTurrets = {}
 	global.TurretGUI = {}
 	global.IconSets = {}
+	global.Counter = 1
+	global.IdleCounter = 1
+	global.Timer = -1
 	make_iconsets()
 	onLoad()
 end
@@ -765,6 +759,11 @@ local function onModChanges(data)
 				for i = 1, #global.LogicTurrets do
 					table.insert(global.LogicTurrets[i], 3, math.min(global.LogicTurrets[i][1].prototype.turret_range * 2.5, 100))
 				end
+			end
+			if old_version < "1.0.3" then
+				global.Counter = 1
+				global.IdleCounter = 1
+				global.Timer = -1
 			end
 		end
 	end

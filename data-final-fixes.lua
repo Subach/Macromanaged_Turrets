@@ -8,7 +8,7 @@ local function icon_base(x, y)
 		shift = {10, 0},
 		x = x,
 		y = y,
-		scale = 2.125
+		scale = 2
 	}
 end
 
@@ -23,7 +23,8 @@ for name, item in pairs(data.raw["ammo"]) do
 				filename = item.icon,
 				width = 32,
 				height = 32,
-				shift = {2, 0}
+				shift = {1, 0},
+				scale = 0.9
 			}
 		}
 		data.raw["gui-style"]["default"]["MMT-ocon-"..name] =
@@ -39,7 +40,8 @@ for name, item in pairs(data.raw["ammo"]) do
 				priority = "extra-high-no-scale",
 				width = 32,
 				height = 32,
-				shift = {2, 0}
+				shift = {1, 0},
+				scale = 0.9
 			}
 		}
 	end

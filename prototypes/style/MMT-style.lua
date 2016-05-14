@@ -7,7 +7,7 @@ local function icon_base(x)
 		height = 36,
 		shift = {10, 0},
 		x = x,
-		scale = 2.125
+		scale = 2
 	}
 end
 
@@ -16,6 +16,13 @@ data.raw["gui-style"]["default"]["MMT-name"] =
 	type = "label_style",
 	parent = "frame_caption_label_style",
 	width = 145
+}
+
+data.raw["gui-style"]["default"]["MMT-table"] =
+{
+	type = "table_style",
+	horizontal_spacing = 1,
+	vertical_spacing = 2
 }
 
 data.raw["gui-style"]["default"]["MMT-count"] =
@@ -38,12 +45,57 @@ data.raw["gui-style"]["default"]["MMT-save"] =
 	left_padding = 0
 }
 
+data.raw["gui-style"]["default"]["MMT-close"] =
+{
+	type = "checkbox_style",
+	default_background =
+	{
+		filename = "__core__/graphics/gui.png",
+		priority = "extra-high-no-scale",
+		width = 16,
+		height = 16,
+		x = 43,
+		y = 17,
+		scale = 0.9
+	},
+	hovered_background =
+	{
+		filename = "__core__/graphics/gui.png",
+		priority = "extra-high-no-scale",
+		width = 16,
+		height = 16,
+		x = 60,
+		y = 17,
+		scale = 0.9
+	},
+	clicked_background =
+	{
+		filename = "__core__/graphics/gui.png",
+		priority = "extra-high-no-scale",
+		width = 16,
+		height = 16,
+		x = 77,
+		y = 17,
+		scale = 0.9
+	},
+	checked =
+	{
+		filename = "__core__/graphics/gui.png",
+		priority = "extra-high-no-scale",
+		width = 16,
+		height = 16,
+		x = 94,
+		y = 17,
+		scale = 0.91
+	}
+}
+
 data.raw["gui-style"]["default"]["MMT-icon-MMT-gui-empty"] =
 {
 	type = "checkbox_style",
 	scalable = false,
-	width = 36,
-	height = 36,
+	width = 37,
+	height = 37,
 	default_background = icon_base(111),
 	hovered_background = icon_base(148),
 	clicked_background = icon_base(185),
@@ -53,6 +105,6 @@ data.raw["gui-style"]["default"]["MMT-icon-MMT-gui-empty"] =
 		priority = "extra-high-no-scale",
 		width = 0,
 		height = 0,
-		shift = {2, 0}
+		shift = {1, 0}
 	}
 }
