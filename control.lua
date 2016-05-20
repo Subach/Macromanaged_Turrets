@@ -15,13 +15,18 @@ local function add_logistics(turret)
 	return {turret, chest, math.min(turret.prototype.turret_range * 2.5, 100)}
 end
 
+local function insert_ammo(logicturret)
+	local stash = logicturret[2].get_inventory(1)[1]
+	stash.count = stash.count - logicturret[1].insert({name = stash.name, count = stash.count})
+	return stash
+end
+
 local function lookup_turret(turret)
 	local lists = {global.LogicTurrets, global.IdleLogicTurrets}
 	for i = 1, #lists do
-		local list = lists[i]
-		for i = 1, #list do
-			if list[i][1] == turret then
-				return list, i
+		for j = 1, #lists[i] do
+			if lists[i][j][1] == turret then
+				return lists[i], j
 			end
 		end
 	end
@@ -40,12 +45,6 @@ local function close_turret_gui(turret)
 	end
 end
 
-local function insert_ammo(logicturret)
-	local stash = logicturret[2].get_inventory(1)[1]
-	stash.count = stash.count - logicturret[1].insert({name = stash.name, count = stash.count})
-	return stash
-end
-
 local function find_items_around(entity)
 	local collision = entity.prototype.collision_box or {left_top = {x = 0, y = 0}, right_bottom = {x = 0, y = 0}}
 	return entity.surface.find_entities_filtered{name = "item-on-ground", area = {
@@ -59,24 +58,28 @@ local function spill_stack(entity, stack)
 	end
 	entity.surface.spill_item_stack(entity.position, {name = stack.name, count = stack.count})
 	local items = find_items_around(entity)
-	if next(items) ~= nil then
-		local count = (stack.count < #items) and stack.count or #items
-		for i = 1, #items do
-			local item = items[i]
-			if item.valid and item.stack.name == stack.name and not item.to_be_deconstructed(entity.force) then
-				item.order_deconstruction(entity.force)
-				count = count - 1
-			end
-			if count <= 0 then
-				break
-			end
+	local count = (stack.count < #items) and stack.count or #items
+	for i = 1, #items do
+		local item = items[i]
+		if item.valid and item.stack.name == stack.name and not item.to_be_deconstructed(entity.force) then
+			item.order_deconstruction(entity.force)
+			count = count - 1
+		end
+		if count <= 0 then
+			break
 		end
 	end
 	stack.clear()
 end
 
-local function fully_eject(logicturret)
-	if logicturret[1].has_items_inside() then
+local function expel_ammo(logicturret, fulleject)
+	if logicturret[2].has_items_inside() then
+		local stash = logicturret[2].get_inventory(1)[1]
+		if stash.valid_for_read then
+			spill_stack(logicturret[1], stash)
+		end
+	end
+	if fulleject == true and logicturret[1].has_items_inside() then
 		local inv = logicturret[1].get_inventory(1)
 		for i = 1, #inv do
 			local stash = inv[i]
@@ -85,11 +88,24 @@ local function fully_eject(logicturret)
 			end
 		end
 	end
-	if logicturret[2].has_items_inside() then
-		local stash = logicturret[2].get_inventory(1)[1]
-		if stash.valid_for_read then
-			spill_stack(logicturret[1], stash)
+end
+
+local function change_request(logicturret, ammo, count)
+	local request = logicturret[2].get_request_slot(1)
+	if request == nil or (request.name == ammo and request.count ~= count) then
+		logicturret[2].set_request_slot({name = ammo, count = count}, 1)
+		if logicturret[1].has_items_inside() then
+			local inv = logicturret[1].get_inventory(1)
+			for i = 1, #inv do
+				local stash = inv[i]
+				if stash.valid_for_read and stash.name ~= ammo then
+					spill_stack(logicturret[1], stash)
+				end
+			end
 		end
+	elseif request.name ~= ammo then
+		logicturret[2].set_request_slot({name = ammo, count = count}, 1)
+		expel_ammo(logicturret, true)
 	end
 end
 
@@ -112,7 +128,7 @@ local function onTick(event)
 					logicturret[2].destroy()
 				end
 				table.remove(global.IdleLogicTurrets, i)
-			elseif not is_idle(logicturret) == true then
+			elseif is_idle(logicturret) == false then
 				global.LogicTurrets[#global.LogicTurrets + 1] = logicturret
 				table.remove(global.IdleLogicTurrets, i)
 			end
@@ -143,7 +159,7 @@ local function toggle_timer(on)
 		return
 	end
 	if on then
-		global.Timer = math.random(30) - 1
+		global.Timer = math.random(30)
 		script.on_event(defines.events.on_tick, onTick)
 	else
 		global.Timer = -1
@@ -201,12 +217,12 @@ local function onMined(event)
 		local logicturret = t[i]
 		if logicturret[1].valid and logicturret[2].valid then
 			if logicturret[2].has_items_inside() then
-				if event.player_index == nil or not (game.players[event.player_index].character and game.players[event.player_index].character.valid) then
+				local player = game.players[event.player_index]
+				if player == nil or not (player.character ~= nil and player.character.valid) then
 					spill_stack(logicturret[1], logicturret[2].get_inventory(1)[1])
 				else
 					local stash = insert_ammo(logicturret)
 					if stash.valid_for_read then
-						local player = game.players[event.player_index]
 						stash.count = stash.count - player.insert({name = stash.name, count = stash.count})
 						if stash.valid_for_read then
 							player.surface.spill_item_stack(player.position, {name = stash.name, count = stash.count})
@@ -244,12 +260,12 @@ local function onUnmarked(event)
 	end
 	local t, i = lookup_turret(event.entity)
 	if t == nil then
-		local relogicturret = add_logistics(event.entity)
-		if relogicturret == nil then
+		local logicturret = add_logistics(event.entity)
+		if logicturret == nil then
 			return
 		end
 		toggle_timer(true)
-		global.LogicTurrets[#global.LogicTurrets + 1] = relogicturret
+		global.LogicTurrets[#global.LogicTurrets + 1] = logicturret
 	else
 		local logicturret = t[i]
 		if logicturret[1].valid and logicturret[2].valid then
@@ -402,12 +418,12 @@ local function show_ammo_table(player_index, gui, request)
 		gui["MMT-ammo"].destroy()
 		return
 	end
-	local turret = global.TurretGUI[player_index].logicturret[1].name
 	if global.TurretGUI[player_index]["cashe"] == nil then
 		global.TurretGUI[player_index]["cashe"] = request
 	else
 		request = global.TurretGUI[player_index]["cashe"]
 	end
+	local turret = global.TurretGUI[player_index].logicturret[1].name
 	local ammo_table = gui.add{type = "table", name = "MMT-ammo", colspan = 5, style = "MMT-table"}
 		ammo_table.add{type = "checkbox", name = "MMT-icon-empty", style = "MMT-icon-MMT-gui-empty", state = true}
 		for i = 1, #global.IconSets[turret] do
@@ -429,19 +445,20 @@ end
 local function save_request(player, gui)
 	local ammo = string.sub(gui["MMT-ammo"].style.name, 10)
 	local count = tonumber(gui["MMT-count"].text)
-	if ammo == "MMT-gui-empty" or count == nil or count < 1 then
-		if gui.parent["MMT-ammo"] ~= nil and global.TurretGUI[player.index]["cashe"] ~= "MMT-gui-empty" then
-			gui.parent["MMT-ammo"]["MMT-icon-"..(global.TurretGUI[player.index]["cashe"])].style = "MMT-icon-"..global.TurretGUI[player.index]["cashe"]
+	local ammo_table = gui.parent["MMT-ammo"]
+	if ammo_table ~= nil then
+		local cashe = global.TurretGUI[player.index]["cashe"]
+		if cashe ~= "MMT-gui-empty" then
+			ammo_table["MMT-icon-"..cashe].style = "MMT-icon-"..cashe
 		end
+	end
+	if ammo == "MMT-gui-empty" or count == nil or count < 1 then
 		global.TurretGUI[player.index]["request"] = "clear"
 		global.TurretGUI[player.index]["cashe"] = "MMT-gui-empty"
 		player.print({"MMT-gui-request-clear"})
 	else
-		if gui.parent["MMT-ammo"] ~= nil then
-			if global.TurretGUI[player.index]["cashe"] ~= "MMT-gui-empty" then
-				gui.parent["MMT-ammo"]["MMT-icon-"..(global.TurretGUI[player.index]["cashe"])].style = "MMT-icon-"..global.TurretGUI[player.index]["cashe"]
-			end
-			gui.parent["MMT-ammo"]["MMT-icon-"..ammo].style = "MMT-ocon-"..ammo
+		if ammo_table ~= nil then
+			ammo_table["MMT-icon-"..ammo].style = "MMT-ocon-"..ammo
 		end
 		count = math.min(math.floor(count), game.item_prototypes[ammo].stack_size)
 		global.TurretGUI[player.index]["request"] = {ammo = ammo, count = count}
@@ -464,40 +481,20 @@ local function close_gui(player)
 		return
 	end
 	if global.TurretGUI[player.index]["request"] ~= nil then
+		local request = global.TurretGUI[player.index]["request"]
 		local logicturret = global.TurretGUI[player.index].logicturret
 		local t, i = lookup_turret(logicturret[1])
-		if global.TurretGUI[player.index]["request"] == "clear" then
-			if logicturret[2].has_items_inside() then
-				local stash = insert_ammo(logicturret)
-				if stash.valid_for_read then
-					spill_stack(logicturret[1], stash)
-				end
-			end
+		if request == "clear" then
 			t[i]["custom-request"] = "clear"
 			logicturret[2].clear_request_slot(1)
+			expel_ammo(logicturret)
 		else
-			local ammo = global.TurretGUI[player.index]["request"].ammo
-			local count = global.TurretGUI[player.index]["request"].count
-			local request = logicturret[2].get_request_slot(1)
-			if ammo == global.LogicTurretConfig[logicturret[1].name].ammo and count == global.LogicTurretConfig[logicturret[1].name].count then
+			local config = global.LogicTurretConfig[logicturret[1].name]
+			if request.ammo == config.ammo and request.count == config.count then
 				t[i]["custom-request"] = nil
 			else
-				t[i]["custom-request"] = {ammo = ammo, count = count}
-			end
-			if request == nil or (request.name == ammo and request.count ~= count) then
-				logicturret[2].set_request_slot({name = ammo, count = count}, 1)
-				if logicturret[1].has_items_inside() then
-					local inv = logicturret[1].get_inventory(1)
-					for j = 1, #inv do
-						local stash = inv[j]
-						if stash.valid_for_read and stash.name ~= ammo then
-							spill_stack(logicturret[1], stash)
-						end
-					end
-				end
-			elseif request.name ~= ammo then
-				logicturret[2].set_request_slot({name = ammo, count = count}, 1)
-				fully_eject(logicturret)
+				t[i]["custom-request"] = {ammo = request.ammo, count = request.count}
+				change_request(logicturret, request.ammo, request.count)
 			end
 		end
 	end
@@ -596,36 +593,17 @@ local function update_requests(UpdatedTurrets)
 				table.remove(t, j)
 			elseif UpdatedTurrets[logicturret[1].name] ~= nil then
 				if global.LogicTurretConfig[logicturret[1].name] == nil then
-					if logicturret[2].has_items_inside() then
-						local stash = insert_ammo(logicturret)
-						if stash.valid_for_read then
-							spill_stack(logicturret[1], stash)
-						end
-					end
+					expel_ammo(logicturret)
 					logicturret[2].destroy()
 					table.remove(t, j)
 				else
-					local ammo = global.LogicTurretConfig[logicturret[1].name].ammo
-					local count = global.LogicTurretConfig[logicturret[1].name].count
-					local request = logicturret[2].get_request_slot(1)
+					local config = global.LogicTurretConfig[logicturret[1].name]
 					if logicturret["custom-request"] ~= nil then
-						if logicturret["custom-request"] ~= "clear" and logicturret["custom-request"].ammo == ammo and logicturret["custom-request"].count == count then
+						if logicturret["custom-request"] ~= "clear" and logicturret["custom-request"].ammo == config.ammo and logicturret["custom-request"].count == config.count then
 							logicturret["custom-request"] = nil
 						end
-					elseif request == nil or (request.name == ammo and request.count ~= count) then
-						logicturret[2].set_request_slot({name = ammo, count = count}, 1)
-						if logicturret[1].has_items_inside() then
-							local inv = logicturret[1].get_inventory(1)
-							for k = 1, #inv do
-								local stash = inv[k]
-								if stash.valid_for_read and stash.name ~= ammo then
-									spill_stack(logicturret[1], stash)
-								end
-							end
-						end
-					elseif request.name ~= ammo then
-						logicturret[2].set_request_slot({name = ammo, count = count}, 1)
-						fully_eject(logicturret)
+					else
+						change_request(logicturret, config.ammo, config.count)
 					end
 				end
 			end
@@ -670,10 +648,10 @@ local function set_autofill(lists)
 	for turret, config in pairs(turretlist) do
 		local ammo = config.ammo
 		local found = false
-		for j = 1, #AutofillSets do
-			for k = 1, #AutofillSets[j] do
-				if ammo == AutofillSets[j][k] then
-					ammo = AutofillSets[j]
+		for i = 1, #AutofillSets do
+			for j = 1, #AutofillSets[i] do
+				if ammo == AutofillSets[i][j] then
+					ammo = AutofillSets[i]
 					found = true
 					break
 				end
@@ -698,6 +676,7 @@ local function onStart(event)
 	update_requests(UpdatedTurrets)
 	find_turrets(NewTurrets)
 	set_autofill({NewTurrets, UpdatedTurrets})
+	script.on_event(defines.events.on_built_entity, onBuilt)
 	if next(global.LogicTurretConfig) ~= nil then
 		script.on_event(defines.events.on_robot_built_entity, onBuilt)
 		script.on_event(defines.events.on_entity_died, onDeath)
@@ -709,7 +688,7 @@ local function onStart(event)
 		script.on_event(defines.events.on_put_item, onPutItem)
 	end
 	if next(global.LogicTurrets) ~= nil or next(global.IdleLogicTurrets) ~= nil then
-		global.Timer = math.random(30) - 1
+		global.Timer = math.random(30)
 		script.on_event(defines.events.on_tick, onTick)
 	else
 		global.Timer = -1
@@ -720,7 +699,6 @@ end
 local function onLoad()
 	RemoteTurretConfig = {}
 	remote.add_interface("Macromanaged_Turrets", {add_logistic_turret = add_logistic_turret})
-	script.on_event(defines.events.on_built_entity, onBuilt)
 	script.on_event(defines.events.on_tick, onStart)
 end
 
@@ -733,6 +711,7 @@ local function onInit()
 	global.Counter = 1
 	global.IdleCounter = 1
 	global.Timer = -1
+	build_workshop()
 	make_iconsets()
 	onLoad()
 end
