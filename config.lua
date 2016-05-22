@@ -34,19 +34,6 @@ Changes to this configuration file require a game reload to take effect.
 
 
 --[[--------------------------------------------------------------------------------------------[[--
---Update frequency
-----------------------------------------------------------------------------------------------------
-This setting controls how often the script checks each logistic turret. The interval is measured in 
-ticks; there are 60 ticks to a second. Setting TimerInterval to a lower number will update turrets 
-more frequently, while setting it to a higher number will improve performance. The default setting 
-of 30 means each turret will be checked twice a second.
-
-Logistic turrets are automatically marked as idle when certain conditions are met. Idle turrets are 
-checked one-fifth as often as non-idle turrets.
---]]--------------------------------------------------------------------------------------------]]--
-TimerInterval = 30
-
---[[--------------------------------------------------------------------------------------------[[--
 --Bob's Warfare
 ----------------------------------------------------------------------------------------------------
 If Bob's Warfare is installed and 'UseBobsDefault' is 'true', Bob's turrets will become logistic 
@@ -71,3 +58,16 @@ You may override any mod-added turret by adding it to the table as per usual, or
 configuring logistic turrets altogether by changing 'AllowRemoteCalls' to 'false'.
 --]]--------------------------------------------------------------------------------------------]]--
 AllowRemoteCalls = true
+
+--[[--------------------------------------------------------------------------------------------[[--
+--Update frequency
+----------------------------------------------------------------------------------------------------
+This setting controls how often the script checks each logistic turret. The interval is measured in 
+ticks; there are 60 ticks to a second. Setting TimerInterval to a lower number will update turrets 
+more frequently, while setting it to a higher number will improve performance. The default setting 
+of 30 means each turret will be checked twice a second.
+
+Logistic turrets are automatically marked as idle when certain conditions are met. Idle turrets are 
+checked one-fifth as often as non-idle turrets.
+--]]--------------------------------------------------------------------------------------------]]--
+TimerInterval = 30
