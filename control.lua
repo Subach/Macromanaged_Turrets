@@ -2,6 +2,10 @@ require("defines")
 require("config")
 local next = next
 
+local RemoteTurretConfig = RemoteTurretConfig or {}
+local interval = interval or math.max(TimerInterval or 30, 1)
+local timer = timer or math.random(interval)
+
 --Library--
 local function add_logistics(turret)
 	local chest = turret.surface.create_entity{name = "MMT-logistic-turret-chest", position = turret.position, force = turret.force,
@@ -111,17 +115,17 @@ end
 
 local function is_idle(logicturret)
 	return (logicturret[2].logistic_network == nil or
-	((logicturret[1].has_items_inside() or not logicturret[2].has_items_inside()) and
+		((logicturret[1].has_items_inside() or not logicturret[2].has_items_inside()) and
 		logicturret[1].surface.find_nearest_enemy{position = logicturret[1].position, max_distance = logicturret[3], force = logicturret[1].force} == nil))
 end
 
 --Event handlers--
 local function onTick(event)
-	local checkidle = event.tick % 30 == global.Timer
+	local checkidle = event.tick % interval == timer
 	if checkidle == true then
 		local list = global.IdleLogicTurrets
 		local count = global.IdleCounter
-		for i = #list - (count - 1), 1, -5 do
+		for i = (#list - count), 1, -5 do
 			local logicturret = list[i]
 			if not (logicturret[1].valid and logicturret[2].valid) then
 				if logicturret[2].valid then
@@ -133,11 +137,11 @@ local function onTick(event)
 				table.remove(global.IdleLogicTurrets, i)
 			end
 		end
-		global.IdleCounter = (count % 5) + 1
+		global.IdleCounter = (count + 1) % 5
 	end
 	local list = global.LogicTurrets
 	local count = global.Counter
-	for i = #list - (count - 1), 1, -30 do
+	for i = (#list - count), 1, -interval do
 		local logicturret = list[i]
 		if not (logicturret[1].valid and logicturret[2].valid) then
 			if logicturret[2].valid then
@@ -151,18 +155,16 @@ local function onTick(event)
 			insert_ammo(logicturret)
 		end
 	end
-	global.Counter = (count % 30) + 1
+	global.Counter = (count + 1) % interval
 end
 
 local function toggle_timer(on)
 	if next(global.LogicTurrets) ~= nil or next(global.IdleLogicTurrets) ~= nil then
 		return
 	end
-	if on then
-		global.Timer = math.random(30)
+	if on == true then
 		script.on_event(defines.events.on_tick, onTick)
 	else
-		global.Timer = -1
 		script.on_event(defines.events.on_tick, nil)
 	end
 end
@@ -576,6 +578,8 @@ local add_logistic_turret = function(turret, ammo, count)
 	end
 end
 
+remote.add_interface("Macromanaged_Turrets", {add_logistic_turret = add_logistic_turret})
+
 --Loader--
 local function update_requests(UpdatedTurrets)
 	if next(UpdatedTurrets) == nil then
@@ -688,17 +692,13 @@ local function onStart(event)
 		script.on_event(defines.events.on_put_item, onPutItem)
 	end
 	if next(global.LogicTurrets) ~= nil or next(global.IdleLogicTurrets) ~= nil then
-		global.Timer = math.random(30)
 		script.on_event(defines.events.on_tick, onTick)
 	else
-		global.Timer = -1
 		script.on_event(defines.events.on_tick, nil)
 	end
 end
 
 local function onLoad()
-	RemoteTurretConfig = {}
-	remote.add_interface("Macromanaged_Turrets", {add_logistic_turret = add_logistic_turret})
 	script.on_event(defines.events.on_tick, onStart)
 end
 
@@ -710,7 +710,6 @@ local function onInit()
 	global.IconSets = {}
 	global.Counter = 1
 	global.IdleCounter = 1
-	global.Timer = -1
 	build_workshop()
 	make_iconsets()
 	onLoad()
@@ -742,7 +741,6 @@ local function onModChanges(data)
 			if old_version < "1.0.3" then
 				global.Counter = 1
 				global.IdleCounter = 1
-				global.Timer = -1
 			end
 		end
 	end
