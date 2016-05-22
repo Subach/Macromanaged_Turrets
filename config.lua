@@ -14,8 +14,8 @@ LogisticTurret["turret-name"] = {ammo = "ammo-name", count = #}
 	"ammo-name" is the ammo you want that turret class to request by default.
 	Names are found in the base game/mod's prototype files, and must include quotation marks.
 
-	'count' is the amount of ammo you want the turret to request. Upgraded robots may add slightly more 
-	than this, due to their increased cargo size.
+	'count' is the amount of ammo you want the turret to request. Upgraded robots may add slightly 
+	more than this, due to their increased cargo size.
 
 	This example would cause all vanilla gun turrets to request five piercing rounds magazines:
 	LogisticTurret["gun-turret"] = {ammo = "piercing-bullet-magazine", count = 5}
@@ -32,6 +32,19 @@ Changes to this configuration file require a game reload to take effect.
 
 
 
+
+--[[--------------------------------------------------------------------------------------------[[--
+--Update frequency
+----------------------------------------------------------------------------------------------------
+This setting controls how often the script checks each logistic turret. The interval is measured in 
+ticks; there are 60 ticks to a second. Setting TimerInterval to a lower number will update turrets 
+more frequently, while setting it to a higher number will improve performance. The default setting 
+of 30 means each turret will be checked twice a second.
+
+Logistic turrets are automatically marked as idle when certain conditions are met. Idle turrets are 
+checked one-fifth as often as non-idle turrets.
+--]]--------------------------------------------------------------------------------------------]]--
+TimerInterval = 30
 
 --[[--------------------------------------------------------------------------------------------[[--
 --Bob's Warfare
