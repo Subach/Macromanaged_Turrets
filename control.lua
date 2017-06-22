@@ -3,6 +3,7 @@ require("config")
 local math = math
 local next = next
 local pairs = pairs
+local select = select
 local sort = table.sort
 
 local ModName = "Macromanaged_Turrets"
@@ -29,6 +30,11 @@ local loaded = false
 ----------------------------------------------------------------------------------------------------
 --Library
 ----------------------------------------------------------------------------------------------------
+--Prototypes----------------------------------------------------------------------------------------
+local onTick
+local get_ghost_data
+local set_circuitry
+
 --Utility-------------------------------------------------------------------------------------------
 local function globalCall(...) --Get or create a global table
 	if global == nil then
@@ -81,10 +87,6 @@ local function ends_with(s, nd)
 	return (#s >= #nd and string.find(s, nd, (#s - #nd) + 1, true) and true or false)
 end
 
-local function trim(s) --Remove whitespace from the beginning and end of a string
-	return s:gsub("^%s*(.-)%s*$", "%1")
-end
-
 local function table_compact(t, r, z)
 	local j = r - 1
 	for i = r, z do
@@ -101,6 +103,9 @@ end
 
 --Core----------------------------------------------------------------------------------------------
 local function is_remote_enabled(force) --Check if the logistic turret remote is enabled
+	if type(force) == "string" then
+		force = game.forces[force]
+	end
 	if force == nil or not force.valid then
 		return
 	end
@@ -114,8 +119,13 @@ local function add_components(turret) --Add internal components
 	local surface = turret.surface
 	local pos = turret.position
 	local force = turret.force
-	local interface, request, insertLimit, mode, wires, override = get_ghost_data(turret) --Get any saved data if this turret was rebuilt from a ghost
-	insertLimit = insertLimit or math.huge --No limit
+	local ghostData = get_ghost_data(turret) or {} --Get any saved data if this turret was rebuilt from a ghost
+	local request = ghostData.request
+	local insertLimit = ghostData.insertLimit or math.huge --No limit
+	local mode = ghostData.mode or OffMode
+	local wires = ghostData.wires or {red = false, green = false}
+	local label = ghostData.label or {}
+	local override = ghostData.override
 	if request ~= nil then
 		request = {{name = request.name, count = request.count, index = 1}} --Set request
 	elseif mode ~= SetRequestsMode and not override and is_remote_enabled(force) then --Logistic system is researched
@@ -129,7 +139,7 @@ local function add_components(turret) --Add internal components
 			request = {{name = config.ammo, count = math.max(config.count - insertLimit, 1), index = 1}} --Set request
 		end
 	end
-	interface = interface or surface.create_entity{name = TurretInterface, position = pos, force = force} --Circuit network interface
+	local interface = ghostData.interface or surface.create_entity{name = TurretInterface, position = pos, force = force} --Circuit network interface
 	local combinator = surface.create_entity{name = TurretCombinator, position = pos, force = force} --Outputs turret inventory/filters incoming signals
 	local bin = surface.create_entity{name = TurretBin, position = pos, force = force} --Recycle bin for unwanted ammo
 	local chest = surface.create_entity{name = TurretChest, position = pos, force = force, request_filters = request} --Internal inventory that requests ammo for the turret
@@ -148,16 +158,6 @@ local function add_components(turret) --Add internal components
 		end
 		return
 	end
-	chest.destructible = false
-	chest.minable = false
-	chest.operable = false
-	bin.destructible = false
-	bin.minable = false
-	bin.operable = false
-	combinator.destructible = false
-	combinator.minable = false
-	combinator.operable = false
-	interface.destructible = false
 	interface.last_user = turret.last_user
 	interface.minable = (turret.minable and turret.prototype.mineable_properties.minable) --Only minable if the turret is
 	interface.operable = false
@@ -168,18 +168,18 @@ local function add_components(turret) --Add internal components
 		bin = bin,
 		combinator = combinator,
 		interface = interface,
-		magazine = turret.get_inventory(defines.inventory.chest)[1],
+		magazine = turret.get_inventory(defines.inventory.turret_ammo)[1],
 		stash = chest.get_inventory(defines.inventory.chest)[1],
 		trash = bin.get_inventory(defines.inventory.chest)[1],
 		insertLimit = insertLimit, --The amount of ammo the turret will attempt to keep in its inventory
 		damageDealt = turret.damage_dealt, --Used to keep track of when turret is in combat
-		label = {}, --Custom labels assigned by players
+		label = label, --Custom labels assigned by players
+		override = override, --A turret with the override flag has had its request changed through the in-game GUI, and will therefore ignore any changes to its config entry
 		circuitry =
 		{
-			mode = mode or OffMode,
-			wires = wires or {red = false, green = false}
-		},
-		override = override
+			mode = mode,
+			wires = wires
+		}
 	}
 	globalCall("LookupTable", surface.index, pos.x)[pos.y] = logicTurret --Add to lookup table
 	if logicTurret.circuitry.mode ~= OffMode then --Re-wire the internal components if this turret was rebuilt from a ghost
@@ -192,14 +192,13 @@ local function add_logistic_turret(logicTurret, enabled) --Add a turret to the l
 	if logicTurret == nil then
 		return
 	end
-	local force = logicTurret.turret.force
+	local force = logicTurret.turret.force.name
 	if enabled or is_remote_enabled(force) then
 		if #globalCall("LogicTurrets") + #globalCall("ActiveLogicTurrets") <= 0 then --If this is the first logistic turret, start the onTick function
 			script.on_event(defines.events.on_tick, onTick)
 		end
 		global.LogicTurrets[#global.LogicTurrets + 1] = logicTurret --Add to turret list
 	else
-		force = force.name
 		globalCall("DormantLogicTurrets", force)[#global.DormantLogicTurrets[force] + 1] = logicTurret --Remain dormant until the logistic system is researched
 	end
 end
@@ -250,8 +249,8 @@ local function destroy_components(logicTurret) --Remove a turret from the logist
 		local found = false
 		for index, exes in pairs(globalCall("LookupTable")) do
 			for x, whys in pairs(exes) do
-				for y, t in pairs(whys) do
-					if t == logicTurret then
+				for y, tablet in pairs(whys) do
+					if tablet == logicTurret then
 						remove_address(index, x, y) --Remove turret from the lookup table
 						found = true
 						break
@@ -354,16 +353,18 @@ local function player_insert_ammo(player, item) --Insert ammo into the player's 
 			if inventories ~= nil then
 				for i = 1, #inventories do
 					local inventory = inventories[i]
-					for j = #inventory, 1, -1 do
-						local stack = inventory[j]
-						if stack.valid_for_read and stack.type == "ammo" and stack.name == item.name then --Item found
-							stack.drain_ammo(magazine_size - item.ammo)
-							found = true
+					if inventory ~= nil and inventory.valid then
+						for j = #inventory, 1, -1 do
+							local stack = inventory[j]
+							if stack.valid_for_read and stack.type == "ammo" and stack.name == item.name then --Item found
+								stack.drain_ammo(magazine_size - item.ammo)
+								found = true
+								break
+							end
+						end
+						if found then
 							break
 						end
-					end
-					if found then
-						break
 					end
 				end
 			end
@@ -382,23 +383,23 @@ local function transfer_inventory(turret, player, ...) --Transfer a logistic tur
 	if turret == nil or player == nil or not (turret.valid and player.valid) then
 		return
 	end
-	local magazine = turret.get_inventory(defines.inventory.chest)
-	local stacks = {...} --Component inventories
 	local items = {}
-	for i = #magazine, 2, -1 do
-		for j = 1, i - 1 do
-			move_ammo(magazine[i], magazine[j]) --Compact ammo into as few slots as possible
-		end
-		if magazine[i].valid_for_read then
-			items[#items + 1] = magazine[i]
-		end
-	end
+	local magazine = turret.get_inventory(defines.inventory.turret_ammo)
+	local stacks = {...} --Component inventories
 	for i = 1, #stacks do
 		for j = 1, #magazine do
 			move_ammo(stacks[i], magazine[j]) --Compact ammo into as few slots as possible
 		end
 		if stacks[i].valid_for_read then
 			items[#items + 1] = stacks[i]
+		end
+	end
+	for i = #magazine, 2, -1 do
+		for j = 1, i - 1 do
+			move_ammo(magazine[i], magazine[j]) --Compact ammo into as few slots as possible
+		end
+		if magazine[i].valid_for_read then
+			items[#items + 1] = magazine[i]
 		end
 	end
 	if magazine[1].valid_for_read then
@@ -427,7 +428,6 @@ local function set_request(logicTurret, request) --Set the chest's request slot
 	if logicTurret == nil or logicTurret.circuitry.mode == SetRequestsMode then --Request slot is overridden by a circuit network
 		return
 	end
-	local chest = logicTurret.chest
 	local config = globalCall("LogicTurretConfig")[logicTurret.turret.name]
 	if request == nil or request == "empty" then
 		if config == "empty" then --New request is the same as the default
@@ -436,7 +436,7 @@ local function set_request(logicTurret, request) --Set the chest's request slot
 			logicTurret.override = true --Set override flag
 		end
 		logicTurret.insertLimit = math.huge --No limit
-		chest.clear_request_slot(1)
+		logicTurret.chest.clear_request_slot(1)
 	else
 		if config ~= "empty" and request.ammo == config.ammo and request.count == config.count then --New request is the same as the default
 			logicTurret.override = nil --Remove override flag
@@ -448,7 +448,7 @@ local function set_request(logicTurret, request) --Set the chest's request slot
 		else
 			logicTurret.insertLimit = math.ceil(request.count / 2) --Split ammo between the turret and chest
 		end
-		chest.set_request_slot({name = request.ammo, count = math.max(request.count - logicTurret.insertLimit, 1)}, 1) --Set request
+		logicTurret.chest.set_request_slot({name = request.ammo, count = math.max(request.count - logicTurret.insertLimit, 1)}, 1) --Set request
 	end
 end
 
@@ -458,16 +458,12 @@ local function spill_stack(entity, stack) --Spill items on the ground and mark t
 	end
 	local surface, pos, force = entity.surface, entity.position, entity.force
 	local name, count = stack.name, stack.count
-	local function find_items() --Find items in a three tile radius
-		local collision = entity.prototype.collision_box or {left_top = {x = 0, y = 0}, right_bottom = {x = 0, y = 0}}
-		local radius = 3
-		return surface.find_entities_filtered{name = "item-on-ground", type = "item-entity", area = { --Note: the "limit" parameter causes issues when spilling multiple stacks
-			{x = pos.x - math.abs(collision.left_top.x) - radius, y = pos.y - math.abs(collision.left_top.y) - radius},
-			{x = pos.x + math.abs(collision.right_bottom.x) + radius, y = pos.y + math.abs(collision.right_bottom.y) + radius}}}
-	end
+	local collision = entity.prototype.collision_box or {left_top = {x = 0, y = 0}, right_bottom = {x = 0, y = 0}}
 	surface.spill_item_stack(pos, stack, true)
 	stack.clear() --Remove original stack
-	local items = find_items()
+	local items = surface.find_entities_filtered{name = "item-on-ground", type = "item-entity", area = { --Note: the "limit" parameter causes issues when spilling multiple stacks
+		{x = pos.x - math.abs(collision.left_top.x) - 3, y = pos.y - math.abs(collision.left_top.y) - 3},
+		{x = pos.x + math.abs(collision.right_bottom.x) + 3, y = pos.y + math.abs(collision.right_bottom.y) + 3}}}
 	count = count < #items and count or #items --If there are items already on the ground, only mark enough to match the number spilled
 	for i = 1, #items do
 		local item = items[i]
@@ -482,7 +478,7 @@ local function spill_stack(entity, stack) --Spill items on the ground and mark t
 end
 
 --Circuitry-----------------------------------------------------------------------------------------
-function set_circuitry(logicTurret, mode, wires) --Wire the turret's internal components and set the mode of operation
+set_circuitry = function(logicTurret, mode, wires) --Wire the turret's internal components and set the mode of operation
 	if logicTurret == nil then
 		return
 	end
@@ -491,7 +487,7 @@ function set_circuitry(logicTurret, mode, wires) --Wire the turret's internal co
 	local interface = logicTurret.interface
 	local circuitry = logicTurret.circuitry
 	local signal = combinator.get_or_create_control_behavior()
-	chest.get_or_create_control_behavior().circuit_mode_of_operation = defines.control_behavior.logistic_container.circuit_mode_of_operation.send_contents --Reset to send contents
+	chest.get_or_create_control_behavior().circuit_mode_of_operation = defines.control_behavior.logistic_container.circuit_mode_of_operation.send_contents --Reset to "send contents"
 	if mode == OffMode or not (wires.red or wires.green) then --Remove all wires, reset all settings
 		combinator.disconnect_neighbour({wire = defines.wire_type.red, target_entity = chest})
 		combinator.disconnect_neighbour({wire = defines.wire_type.red, target_entity = interface})
@@ -499,10 +495,10 @@ function set_circuitry(logicTurret, mode, wires) --Wire the turret's internal co
 		combinator.disconnect_neighbour({wire = defines.wire_type.green, target_entity = interface})
 		signal.parameters = {parameters = {}} --Reset signals
 		logicTurret.interface.get_or_create_control_behavior().circuit_condition = {condition = nil} --LED cannot turn green
-		circuitry.signal = nil
 		circuitry.mode = OffMode
 		circuitry.wires.red = false
 		circuitry.wires.green = false
+		circuitry.signal = nil
 		circuitry.cache = nil
 		circuitry.override = nil
 	elseif mode == SendContentsMode or mode == SetRequestsMode then
@@ -532,18 +528,15 @@ function set_circuitry(logicTurret, mode, wires) --Wire the turret's internal co
 			logicTurret.override = nil --Remove override flag
 		end
 		logicTurret.interface.get_or_create_control_behavior().circuit_condition = {condition = {first_signal = {type = "virtual", name = "signal-everything"}, constant = -2147483648}} --Allow the LED to turn green
-		circuitry.signal = signal
 		circuitry.mode = mode
 		circuitry.wires.red = wires.red
 		circuitry.wires.green = wires.green
+		circuitry.signal = signal
 		circuitry.cache = {}
 	end
 end
 
 local function get_network_signals(logicTurret) --Combine signals from red and green networks, filtering out anything that isn't useable ammo
-	if logicTurret == nil then
-		return
-	end
 	local category = global.TurretAmmoSets[logicTurret.turret.name][0] --Turret's ammo category
 	local input = {}
 	local networks = {}
@@ -574,9 +567,6 @@ local function get_network_signals(logicTurret) --Combine signals from red and g
 end
 
 local function signal_has_changed(cache, signals) --Compare signals to a cached value
-	if cache == nil or signals == nil then
-		return
-	end
 	for item, count in pairs(cache) do
 		if count ~= signals[item] then
 			return true
@@ -591,12 +581,9 @@ local function signal_has_changed(cache, signals) --Compare signals to a cached 
 end
 
 local function set_signal(logicTurret) --Set the combinator's signal
-	if logicTurret == nil then
-		return
-	end
 	local circuitry = logicTurret.circuitry
 	if circuitry.mode == SendContentsMode then --Send contents
-		local output = logicTurret.turret.get_inventory(defines.inventory.chest).get_contents() --Turret's inventory
+		local output = logicTurret.turret.get_inventory(defines.inventory.turret_ammo).get_contents() --Turret's inventory
 		if signal_has_changed(circuitry.cache, output) then --Build a new signal list
 			local index = 0
 			local signals = {}
@@ -611,8 +598,8 @@ local function set_signal(logicTurret) --Set the combinator's signal
 			circuitry.cache = output --Update cache
 		end
 	elseif circuitry.mode == SetRequestsMode then --Set request
-		if circuitry.override then --Activate input mode
-			logicTurret.chest.get_or_create_control_behavior().circuit_mode_of_operation = defines.control_behavior.logistic_container.circuit_mode_of_operation.set_requests
+		if circuitry.override then
+			logicTurret.chest.get_or_create_control_behavior().circuit_mode_of_operation = defines.control_behavior.logistic_container.circuit_mode_of_operation.set_requests --Activate input mode
 			circuitry.override = nil
 			return
 		end
@@ -639,9 +626,6 @@ end
 
 --On tick-------------------------------------------------------------------------------------------
 local function in_combat(logicTurret) --Compare damage dealt to a cached value
-	if logicTurret == nil then
-		return
-	end
 	local damage = logicTurret.turret.damage_dealt
 	if logicTurret.damageDealt ~= damage then --Turret is probably in combat
 		logicTurret.damageDealt = damage --Update cache
@@ -650,9 +634,6 @@ local function in_combat(logicTurret) --Compare damage dealt to a cached value
 end
 
 local function request_fulfilled(logicTurret) --Check if turret needs reloading
-	if logicTurret == nil then
-		return
-	end
 	local stash = logicTurret.stash
 	if not stash.valid_for_read then --Stash is empty
 		return true
@@ -663,9 +644,6 @@ local function request_fulfilled(logicTurret) --Check if turret needs reloading
 end
 
 local function process_active_turret(logicTurret) --Reload turret from chest
-	if logicTurret == nil then
-		return
-	end
 	local magazine = logicTurret.magazine
 	if magazine.valid_for_read then
 		local reload = logicTurret.insertLimit - magazine.count
@@ -678,9 +656,6 @@ local function process_active_turret(logicTurret) --Reload turret from chest
 end
 
 local function process_idle_turret(logicTurret) --Move unwanted ammo to bin
-	if logicTurret == nil then
-		return
-	end
 	local magazine = logicTurret.magazine
 	if magazine.valid_for_read then
 		local request = logicTurret.chest.get_request_slot(1)
@@ -707,6 +682,17 @@ local function awaken_dormant_turrets(force) --Awaken the dormant turrets of a f
 	global.DormantLogicTurrets[force] = nil --Delete list
 end
 
+local function destroy_gui(id)
+	local player = get_player(id)
+	if player ~= nil then
+		local gui = player.gui.center[ModPrefix.."gui"]
+		if gui ~= nil and gui.valid then
+			gui.destroy() --Close GUI
+		end
+	end
+	globalCall("TurretGUI")[id] = nil --Delete GUI metadata
+end
+
 local function close_turret_gui(turret) --Close this turret's GUI for any player that may have it open
 	if turret == nil or not turret.valid then
 		return
@@ -716,14 +702,7 @@ local function close_turret_gui(turret) --Close this turret's GUI for any player
 		for _, logicTurrets in pairs(guiData.logicTurrets) do
 			for i = 1, #logicTurrets do
 				if logicTurrets[i].turret == turret then --Player's GUI contains this turret
-					local player = get_player(id)
-					if player ~= nil then
-						local gui = player.gui.center[ModPrefix.."gui"]
-						if gui ~= nil and gui.valid then
-							gui.destroy() --Close GUI
-						end
-						global.TurretGUI[id] = nil --Delete GUI metadata
-					end
+					destroy_gui(id)
 					found = true
 					break
 				end
@@ -755,18 +734,19 @@ local function set_ghost_data(logicTurret) --Save a turret's data when it turns 
 	local interface = logicTurret.interface
 	local ghostTimer = interface.force.ghost_time_to_live
 	if ghostTimer > 0 then
-		local wires = {[defines.wire_type.red] = "red", [defines.wire_type.green] = "green"}
 		local pos = interface.position
 		local connections = interface.circuit_connection_definitions
 		local data = {}
 		for i = 1, #connections do
 			local connection = connections[i]
-			local wire = wires[connection.wire]
 			local target = connection.target_entity
-			if data[wire] == nil then
-				data[wire] = {}
+			if target ~= nil and target.valid then
+				local wire = connection.wire
+				if data[wire] == nil then
+					data[wire] = {}
+				end
+				data[wire][#data[wire] + 1] = {name = target.name, type = target.type, position = {x = target.position.x - pos.x, y = target.position.y - pos.y}, circuit_id = connection.target_circuit_id}
 			end
-			data[wire][#data[wire] + 1] = {name = target.name, type = target.type, position = {x = target.position.x - pos.x, y = target.position.y - pos.y}, circuit_id = connection.target_circuit_id}
 		end
 		globalCall("GhostConnections", interface.surface.index, pos.x, pos.y)[interface.force.name] =
 		{
@@ -775,6 +755,7 @@ local function set_ghost_data(logicTurret) --Save a turret's data when it turns 
 			insertLimit = logicTurret.insertLimit,
 			mode = logicTurret.circuitry.mode,
 			wires = logicTurret.circuitry.wires,
+			label = logicTurret.label,
 			override = logicTurret.override,
 			connections = data,
 			expiration = game.tick + ghostTimer
@@ -782,7 +763,7 @@ local function set_ghost_data(logicTurret) --Save a turret's data when it turns 
 	end
 end
 
-function get_ghost_data(turret) --Get a turret's data when its ghost is rebuilt
+get_ghost_data = function(turret) --Get a turret's data when its ghost is rebuilt
 	if turret == nil or not turret.valid then
 		return
 	end
@@ -793,38 +774,54 @@ function get_ghost_data(turret) --Get a turret's data when its ghost is rebuilt
 	if globalCall("GhostConnections")[index] ~= nil and global.GhostConnections[index][pos.x] ~= nil and global.GhostConnections[index][pos.x][pos.y] ~= nil then
 		local ghostData = global.GhostConnections[index][pos.x][pos.y][force]
 		if ghostData ~= nil and ghostData.name == turret.name and game.tick < ghostData.expiration then
-			local wireTypes = {red = defines.wire_type.red, green = defines.wire_type.green}
 			local interface = surface.create_entity{name = TurretInterface, position = pos, force = force}
-			for wire, targets in pairs(ghostData.connections) do
-				for i = 1, #targets do
-					local target = targets[i]
-					local x = pos.x + target.position.x
-					local y = pos.y + target.position.y
-					local entity = surface.find_entities_filtered{name = target.name, type = target.type, area = {{x - 0.05, y - 0.05}, {x + 0.05, y + 0.05}}, force = force, limit = 1}[1]
-					if entity ~= nil then
-						interface.connect_neighbour({wire = wireTypes[wire], target_entity = entity, target_circuit_id = target.circuit_id})
+			if interface ~= nil and interface.valid then
+				for wire, targets in pairs(ghostData.connections) do
+					for i = 1, #targets do
+						local target = targets[i]
+						local x = pos.x + target.position.x
+						local y = pos.y + target.position.y
+						local entity = surface.find_entities_filtered{name = target.name, type = target.type, area = {{x - 0.05, y - 0.05}, {x + 0.05, y + 0.05}}, force = force, limit = 1}[1]
+						if entity ~= nil and entity.valid then
+							interface.connect_neighbour({wire = wire, target_entity = entity, target_circuit_id = target.circuit_id})
+						end
 					end
 				end
+				ghostData.interface = interface
+				remove_ghost_data(index, pos.x, pos.y, force) --Remove entry from the ghost lookup table
+				return ghostData
 			end
-			remove_ghost_data(index, pos.x, pos.y, force)
-			return interface, ghostData.request, ghostData.insertLimit, ghostData.mode, ghostData.wires, ghostData.override
 		end
-		remove_ghost_data(index, pos.x, pos.y, force)
+		remove_ghost_data(index, pos.x, pos.y, force) --Remove entry from the ghost lookup table
 	end
 end
 
-local function validate_ghost_data() --Remove expired ghosts from the ghost lookup table
+local function validate_ghost_data() --Remove expired entries from the ghost lookup table
 	for index, exes in pairs(globalCall("GhostConnections")) do
 		local surface = game.surfaces[index]
-		for x, whys in pairs(exes) do
-			for y, forsees in pairs(whys) do
-				for force, ghostData in pairs(forsees) do
-					local ghost = surface.find_entities_filtered{name = "entity-ghost", type = "entity-ghost", position = {x, y}, force = force, limit = 1}[1]
-					if ghost == nil or not ghost.valid or ghost.ghost_name ~= ghostData.name or game.tick >= ghostData.expiration or globalCall("LogicTurretConfig")[ghostData.name] == nil then
-						remove_ghost_data(index, x, y, force) --Remove ghost from the ghost lookup table
+		if surface ~= nil and surface.valid then
+			for x, whys in pairs(exes) do
+				for y, forsees in pairs(whys) do
+					for force, ghostData in pairs(forsees) do
+						local validGhost = false
+						if game.tick < ghostData.expiration and globalCall("LogicTurretConfig")[ghostData.name] ~= nil then
+							local ghosts = surface.find_entities_filtered{name = "entity-ghost", type = "entity-ghost", area = {{x - 0.05, y - 0.05}, {x + 0.05, y + 0.05}}, force = force}
+							for i = 1, #ghosts do
+								local ghost = ghosts[i]
+								if ghost ~= nil and ghost.valid and ghost.ghost_type == "ammo-turret" and ghost.ghost_name == ghostData.name then
+									validGhost = true
+									break
+								end
+							end
+						end
+						if not validGhost then
+							remove_ghost_data(index, x, y, force) --Remove entry from the ghost lookup table
+						end
 					end
 				end
 			end
+		else
+			global.GhostConnections[index] = nil
 		end
 	end
 end
@@ -832,7 +829,7 @@ end
 ----------------------------------------------------------------------------------------------------
 --Event handlers
 ----------------------------------------------------------------------------------------------------
-function onTick(event) --Controls the behavior of logistic turrets
+onTick = function(event) --Controls the behavior of logistic turrets
 	if not loaded then
 		load_config()
 		return
@@ -840,7 +837,6 @@ function onTick(event) --Controls the behavior of logistic turrets
 	local iIndex = #global.LogicTurrets
 	local aIndex = #global.ActiveLogicTurrets
 	if iIndex > 0 then --Check idle turrets
-		local zIndex = iIndex
 		local rIndex = nil
 		local i = global.IdleCounter
 		while i <= iIndex do
@@ -850,7 +846,7 @@ function onTick(event) --Controls the behavior of logistic turrets
 					rIndex = i --First removed entry
 				end
 				global.LogicTurrets[i] = nil
-			elseif is_valid_turret(logicTurret) and logicTurret.turret.active and not logicTurret.active then
+			elseif is_valid_turret(logicTurret) and not logicTurret.active and logicTurret.turret.active then
 				if in_combat(logicTurret) or not request_fulfilled(logicTurret) then --Add to active list
 					aIndex = aIndex + 1
 					global.ActiveLogicTurrets[aIndex] = logicTurret
@@ -859,7 +855,7 @@ function onTick(event) --Controls the behavior of logistic turrets
 					if logicTurret.stash.valid_for_read then
 						process_idle_turret(logicTurret)
 					end
-					if logicTurret.circuitry.mode ~= OffMode then --Check signals
+					if logicTurret.circuitry.mode ~= OffMode then
 						set_signal(logicTurret)
 					end
 				end
@@ -867,12 +863,11 @@ function onTick(event) --Controls the behavior of logistic turrets
 			i = i + IdleInterval
 		end
 		if rIndex ~= nil then --At least one entry was removed
-			iIndex = table_compact(global.LogicTurrets, rIndex, zIndex) --Close the gaps left by removed entries
+			iIndex = table_compact(global.LogicTurrets, rIndex, iIndex) --Close the gaps left by removed entries
 		end
 		global.IdleCounter = (global.IdleCounter % IdleInterval) + 1
 	end
 	if aIndex > 0 then --Check active turrets
-		local zIndex = aIndex
 		local rIndex = nil
 		local i = global.Counter
 		while i <= aIndex do
@@ -883,7 +878,7 @@ function onTick(event) --Controls the behavior of logistic turrets
 				end
 				global.ActiveLogicTurrets[i] = nil
 				logicTurret.active = nil
-			elseif is_valid_turret(logicTurret) and logicTurret.turret.active then
+			elseif is_valid_turret(logicTurret) then
 				logicTurret.active = (logicTurret.active % ActiveTimer) + 1 --Increment the turret's timer
 				if logicTurret.active == ActiveTimer and not in_combat(logicTurret) and request_fulfilled(logicTurret) then --Remove from active list
 					if rIndex == nil then
@@ -895,7 +890,7 @@ function onTick(event) --Controls the behavior of logistic turrets
 					if logicTurret.stash.valid_for_read then
 						process_active_turret(logicTurret)
 					end
-					if logicTurret.circuitry.mode ~= OffMode then --Check signals
+					if logicTurret.circuitry.mode ~= OffMode then
 						set_signal(logicTurret)
 					end
 				end
@@ -903,7 +898,7 @@ function onTick(event) --Controls the behavior of logistic turrets
 			i = i + Interval
 		end
 		if rIndex ~= nil then --At least one entry was removed
-			aIndex = table_compact(global.ActiveLogicTurrets, rIndex, zIndex) --Close the gaps left by removed entries
+			aIndex = table_compact(global.ActiveLogicTurrets, rIndex, aIndex) --Close the gaps left by removed entries
 		end
 		global.Counter = (global.Counter % Interval) + 1
 	end
@@ -917,7 +912,8 @@ local function onEntityBuilt(event) --Add turret to the logistic turret list whe
 	if entity == nil or not entity.valid then
 		return
 	end
-	if globalCall("LogicTurretConfig")[entity.name] ~= nil then
+	local name = entity.name
+	if globalCall("LogicTurretConfig")[name] ~= nil then
 		local logicTurret = add_components(entity) --Add internal components
 		if logicTurret ~= nil then
 			add_logistic_turret(logicTurret) --Add to logistic turret list
@@ -967,7 +963,7 @@ local function onEntityMined(event) --Remove turret from the logistic turret lis
 								if count ~= nil and count > 0 then
 									local inserted = player.insert({name = product.name, count = count, health = health}) --Add the turret to the player's inventory
 									if inserted < count then
-										turret.surface.spill_item_stack(turret.position, {name = product.name, count = count - inserted, health = health}, true) --Drop turret on the ground if it didn't fit in the player's inventory
+										turret.surface.spill_item_stack(turret.position, {name = product.name, count = count - inserted, health = health}) --Drop turret on the ground if it didn't fit in the player's inventory
 									end
 									game.raise_event(defines.events.on_player_mined_item, {item_stack = {name = product.name, count = count}, player_index = id}) --Raise an event as though the turret was mined
 								end
@@ -981,8 +977,11 @@ local function onEntityMined(event) --Remove turret from the logistic turret lis
 			if player ~= nil then
 				transfer_inventory(turret, player, logicTurret.stash, logicTurret.trash)
 			else
-				move_ammo(logicTurret.stash, logicTurret.magazine)
-				move_ammo(logicTurret.trash, logicTurret.magazine)
+				local magazine = turret.get_inventory(defines.inventory.turret_ammo)
+				for i = 1, #magazine do
+					move_ammo(logicTurret.stash, magazine[i])
+					move_ammo(logicTurret.trash, magazine[i])
+				end
 				spill_stack(turret, logicTurret.stash)
 				spill_stack(turret, logicTurret.trash)
 			end
@@ -1059,11 +1058,11 @@ local function onForcesMerged(event) --Migrate or awaken dormant turrets
 	if globalCall("DormantLogicTurrets")[source] == nil then --Force has no dormant turrets
 		return
 	end
+	destination = destination.name
 	if is_remote_enabled(destination) then --Logistic system is researched
 		awaken_dormant_turrets(source)
 	else
 		local turretArray = global.DormantLogicTurrets[source]
-		destination = destination.name
 		for i = 1, #turretArray do
 			local logicTurret = is_valid_turret(turretArray[i])
 			if logicTurret ~= nil then
@@ -1281,29 +1280,29 @@ local function gui_show_wires(id, gui) --Show, hide, or update the curret turret
 		end
 		return
 	else
-		local redStyle = ModPrefix.."gray"
-		local greenStyle = ModPrefix.."gray"
+		local redStyle = "gray"
+		local greenStyle = "gray"
 		if circuitry.wires.red then
-			redStyle = ModPrefix.."blue"
+			redStyle = "blue"
 		end
 		if circuitry.wires.green then
-			greenStyle = ModPrefix.."blue"
+			greenStyle = "blue"
 		end
 		if guiElement[ModPrefix.."connect-flow"] ~= nil then
-			guiElement[ModPrefix.."connect-flow"][ModPrefix.."wire-flow"][ModPrefix.."red-button"].style = redStyle
-			guiElement[ModPrefix.."connect-flow"][ModPrefix.."wire-flow"][ModPrefix.."green-button"].style = greenStyle
+			guiElement[ModPrefix.."connect-flow"][ModPrefix.."wire-flow"][ModPrefix.."red-button"].style = ModPrefix..redStyle
+			guiElement[ModPrefix.."connect-flow"][ModPrefix.."wire-flow"][ModPrefix.."green-button"].style = ModPrefix..greenStyle
 		else
 			local connect_flow = guiElement.add{type = "flow", name = ModPrefix.."connect-flow", direction = "vertical", style = "table_spacing_flow_style"}
 				connect_flow.style.minimal_height = 58
 				connect_flow.add{type = "label", name = ModPrefix.."connect-label", style = "description_label_style", caption = {"MMT.gui.connect"}, tooltip = {"MMT.gui.connect-description"}}
 				local wire_flow = connect_flow.add{type = "flow", name = ModPrefix.."wire-flow", direction = "horizontal", style = "slot_table_spacing_flow_style"}
-					wire_flow.add{type = "sprite-button", name = ModPrefix.."red-button", style = redStyle, sprite = "item/red-wire", tooltip = {"item-name.red-wire"}}
-					wire_flow.add{type = "sprite-button", name = ModPrefix.."green-button", style = greenStyle, sprite = "item/green-wire", tooltip = {"item-name.green-wire"}}
+					wire_flow.add{type = "sprite-button", name = ModPrefix.."red-button", style = ModPrefix..redStyle, sprite = "item/red-wire", tooltip = {"item-name.red-wire"}}
+					wire_flow.add{type = "sprite-button", name = ModPrefix.."green-button", style = ModPrefix..greenStyle, sprite = "item/green-wire", tooltip = {"item-name.green-wire"}}
 		end
 	end
 end
 
-local function gui_show_circuit_panel(id, gui) --Show the curret turret's circuitry panel
+local function gui_show_circuit_panel(id, gui) --Show the current turret's circuitry panel
 	local guiElement = gui.center[ModPrefix.."gui"][ModPrefix.."circuitry-frame"]
 	if guiElement == nil then
 		return
@@ -1331,15 +1330,15 @@ local function gui_show_ammo_table(id, gui) --Shows the list of ammo the current
 		ammo_table.add{type = "sprite-button", name = ModPrefix..BlankInGUI.."-ammo-button", style = ModPrefix.."gray", tooltip = {"MMT.gui.empty"}} --Blank request
 		for i = 1, #ammoList do
 			local ammo = ammoList[i]
-			if request ~= nil and ammo == request.name then
-				ammo_table.add{type = "sprite-button", name = ModPrefix..ammo.."-ammo-button", style = ModPrefix.."orange", sprite = gui_get_sprite(gui, "item/"..ammo), tooltip = game.item_prototypes[ammo].localised_name} --Highlight current request
-			else
-				ammo_table.add{type = "sprite-button", name = ModPrefix..ammo.."-ammo-button", style = ModPrefix.."gray", sprite = gui_get_sprite(gui, "item/"..ammo), tooltip = game.item_prototypes[ammo].localised_name}
+			local style = "gray"
+			if request ~= nil and ammo == request.name then --Highlight current request
+				style = "orange"
 			end
+			ammo_table.add{type = "sprite-button", name = ModPrefix..ammo.."-ammo-button", style = ModPrefix..style, sprite = gui_get_sprite(gui, "item/"..ammo), tooltip = game.item_prototypes[ammo].localised_name}
 		end
 end
 
-local function gui_show_request(id, gui) --Shows the current turret's request
+local function gui_show_request(id, gui) --Show the current turret's request
 	local guiElement = gui.center[ModPrefix.."gui"][ModPrefix.."logistics-flow"][ModPrefix.."turret-frame"]
 	local guiData, turret, index, cache = gui_get_data(id)
 	local logicTurret = guiData.logicTurrets[turret][index]
@@ -1375,7 +1374,7 @@ local function gui_rename_turret(id, gui) --Save or delete the custom label
 	local guiElement = gui.center[ModPrefix.."gui"][ModPrefix.."logistics-flow"][ModPrefix.."turret-frame"][ModPrefix.."turret-label"]
 	local guiData, turret, index = gui_get_data(id)
 	local logicTurret = guiData.logicTurrets[turret][index]
-	local label = trim(guiElement[ModPrefix.."edit-field"].text)
+	local label = string.gsub(guiElement[ModPrefix.."edit-field"].text, "^%s*(.-)%s*$", "%1") --Remove leading and trailing whitespace
 	if label == "" then
 		label = nil --Reset to default
 	end
@@ -1425,7 +1424,7 @@ end
 local function guiClick_paste(id, gui, pasteMode) --Paste the contents of the clipboard according to the button pressed
 	local clipboard = globalCall("Clipboard")[id]
 	if clipboard == nil then --Clipboard is empty
-		game.players[id].print({"MMT.message.paste-nil"}) --Display a message
+		gui.player.print({"MMT.message.paste-nil"}) --Display a message
 		return
 	end
 	local guiData, currentTurret, currentIndex, cache = gui_get_data(id)
@@ -1443,9 +1442,7 @@ local function guiClick_paste(id, gui, pasteMode) --Paste the contents of the cl
 		end
 	elseif pasteMode == ModPrefix.."all-button" then --Always available
 		if ammo == BlankInGUI then
-			is_compatible = function(turret)
-				return true --All turrets
-			end
+			is_compatible = function(turret) return true end --All turrets
 		else
 			is_compatible = function(turret)
 				if globalCall("TurretAmmoSets", turret)[0] == category then return true end --All turrets with matching ammo type
@@ -1485,13 +1482,13 @@ local function guiClick_paste(id, gui, pasteMode) --Paste the contents of the cl
 			end
 		end
 	end
-	game.players[id].print(gui_compose_message(pasteData, clipboard)) --Display a message based on the result
+	gui.player.print(gui_compose_message(pasteData, clipboard)) --Display a message based on the result
 end
 
 local function guiClick_paste_behavior(id, gui) --Paste the control behavior settings stored in the clipboard
 	local clipboard = globalCall("Clipboard")[id]
 	if clipboard == nil or clipboard.circuitry == nil then --Clipboard is empty
-		game.players[id].print({"MMT.message.paste-nil"}) --Display a message
+		gui.player.print({"MMT.message.paste-nil"}) --Display a message
 		return
 	end
 	local guiElement = gui.center[ModPrefix.."gui"][ModPrefix.."circuitry-frame"]
@@ -1520,7 +1517,7 @@ local function guiClick_paste_behavior(id, gui) --Paste the control behavior set
 			end
 		end
 	end
-	game.players[id].print(gui_compose_message(pasteData, clipboard)) --Display a message based on the result
+	gui.player.print(gui_compose_message(pasteData, clipboard)) --Display a message based on the result
 end
 
 local function guiClick_circuitry(id, gui) --Show or hide the circuit network panel
@@ -1607,7 +1604,7 @@ local function guiClick_save(id, gui) --Save the currently displayed request to 
 			message = {"MMT.message.save", label, {"MMT.gui.item", ammoData.localised_name, count}}
 		end
 	end
-	game.players[id].print(message) --Display a message based on the result
+	gui.player.print(message) --Display a message based on the result
 end
 
 local function guiClick_copy(id, gui) --Save the currently displayed request to the clipboard
@@ -1639,7 +1636,7 @@ local function guiClick_copy(id, gui) --Save the currently displayed request to 
 		end
 		message = {"MMT.message.combine", message, bMessage}
 	end
-	game.players[id].print(message) --Display a message based on the result
+	gui.player.print(message) --Display a message based on the result
 	gui_show_control_panel(id, gui)
 end
 
@@ -1721,14 +1718,14 @@ local function open_gui(id) --Create the GUI
 						guiData.cache[turret] = {} --Create cache
 						local turretName = game.entity_prototypes[turret].localised_name
 						local tooltip = {"MMT.gui.turret-tooltip", turretName}
+						local style = "gray"
 						if #guiData.logicTurrets[turret] > 1 then
 							tooltip = {"MMT.gui.turrets-tooltip", turretName, #guiData.logicTurrets[turret]}
 						end
-						if turret == guiData.turret then
-							turret_table.add{type = "sprite-button", name = ModPrefix..turret.."-turret-button", style = ModPrefix.."orange", sprite = gui_get_sprite(gui, "entity/"..turret), tooltip = tooltip} --Highlight current turret
-						else
-							turret_table.add{type = "sprite-button", name = ModPrefix..turret.."-turret-button", style = ModPrefix.."gray", sprite = gui_get_sprite(gui, "entity/"..turret), tooltip = tooltip}
+						if turret == guiData.turret then --Highlight current turret
+							style = "orange"
 						end
+						turret_table.add{type = "sprite-button", name = ModPrefix..turret.."-turret-button", style = ModPrefix..style, sprite = gui_get_sprite(gui, "entity/"..turret), tooltip = tooltip}
 					end
 			local turret = guiData.turret
 				local control_flow = nav_frame.add{type = "flow", name = ModPrefix.."control-flow", direction = "horizontal", style = "achievements_flow_style"}
@@ -1870,14 +1867,16 @@ local function onSelectedArea(event) --Use the logistic turret remote to open th
 	local turretList = {}
 	for i = 1, #entities do
 		local entity = entities[i]
-		local turret = entity.name
-		if globalCall("LogicTurretConfig")[turret] ~= nil and entity.operable and not entity.to_be_deconstructed(force) then
-			local logicTurret = lookup_turret(entity)
-			if logicTurret ~= nil then
-				if turretList[turret] == nil then
-					turretList[turret] = {}
+		if entity ~= nil and entity.valid then
+			local turret = entity.name
+			if globalCall("LogicTurretConfig")[turret] ~= nil and entity.operable and not entity.to_be_deconstructed(force) then
+				local logicTurret = lookup_turret(entity)
+				if logicTurret ~= nil then
+					if turretList[turret] == nil then
+						turretList[turret] = {}
+					end
+					turretList[turret][#turretList[turret] + 1] = logicTurret --Sort turrets into lists by name
 				end
-				turretList[turret][#turretList[turret] + 1] = logicTurret --Sort turrets by name
 			end
 		end
 	end
@@ -1943,33 +1942,35 @@ local function onAltSelectedArea(event) --Quick-paste mode
 	local entities = event.entities
 	for i = 1, #entities do
 		local entity = entities[i]
-		local turret = entity.name
-		if globalCall("LogicTurretConfig")[turret] ~= nil and is_compatible(turret) and entity.operable and not entity.to_be_deconstructed(force) then
-			local logicTurret = lookup_turret(entity)
-			if logicTurret ~= nil then
-				close_turret_gui(entity) --Close this turret's GUI for all players
-				if circuitry ~= nil and QuickpasteBehavior then
-					set_circuitry(logicTurret, circuitry.mode, circuitry.wires)
-					if pasteData.bUnit == nil then
-						pasteData.bUnit = logicTurret.label[id] or {"MMT.gui.turret-label", logicTurret.turret.localised_name, logicTurret.turret.unit_number}
+		if entity ~= nil and entity.valid then
+			local turret = entity.name
+			if globalCall("LogicTurretConfig")[turret] ~= nil and is_compatible(turret) and entity.operable and not entity.to_be_deconstructed(force) then
+				local logicTurret = lookup_turret(entity)
+				if logicTurret ~= nil then
+					close_turret_gui(entity) --Close this turret's GUI for all players
+					if circuitry ~= nil and QuickpasteBehavior then
+						set_circuitry(logicTurret, circuitry.mode, circuitry.wires)
+						if pasteData.bUnit == nil then
+							pasteData.bUnit = logicTurret.label[id] or {"MMT.gui.turret-label", logicTurret.turret.localised_name, logicTurret.turret.unit_number}
+						end
+						pasteData.bCount = pasteData.bCount + 1
 					end
-					pasteData.bCount = pasteData.bCount + 1
-				end
-				if logicTurret.circuitry.mode == SetRequestsMode then --Request slot is overridden by a circuit network
-					if pasteData.oUnit == nil then
-						pasteData.oUnit = logicTurret.label[id] or {"MMT.gui.turret-label", logicTurret.turret.localised_name, logicTurret.turret.unit_number}
-					end
-					pasteData.oCount = pasteData.oCount + 1
-				else
-					if ammo == BlankInGUI then
-						set_request(logicTurret, "empty")
+					if logicTurret.circuitry.mode == SetRequestsMode then --Request slot is overridden by a circuit network
+						if pasteData.oUnit == nil then
+							pasteData.oUnit = logicTurret.label[id] or {"MMT.gui.turret-label", logicTurret.turret.localised_name, logicTurret.turret.unit_number}
+						end
+						pasteData.oCount = pasteData.oCount + 1
 					else
-						set_request(logicTurret, {ammo = ammo, count = count})
+						if ammo == BlankInGUI then
+							set_request(logicTurret, "empty")
+						else
+							set_request(logicTurret, {ammo = ammo, count = count})
+						end
+						if pasteData.rUnit == nil then
+							pasteData.rUnit = logicTurret.label[id] or {"MMT.gui.turret-label", logicTurret.turret.localised_name, logicTurret.turret.unit_number}
+						end
+						pasteData.rCount = pasteData.rCount + 1
 					end
-					if pasteData.rUnit == nil then
-						pasteData.rUnit = logicTurret.label[id] or {"MMT.gui.turret-label", logicTurret.turret.localised_name, logicTurret.turret.unit_number}
-					end
-					pasteData.rCount = pasteData.rCount + 1
 				end
 			end
 		end
@@ -1981,17 +1982,9 @@ local function onPlayerDied(event) --Close GUI when player dies
 	close_gui(event.player_index)
 end
 
-local function onPlayerUpdated(event) --Close GUI and clear clipboard
+local function onPlayerConnection(event) --Close GUI and clear clipboard
 	local id = event.player_index
-	local player = get_player(id)
-	if player == nil then
-		return
-	end
-	local gui = player.gui.center[ModPrefix.."gui"]
-	if gui ~= nil and gui.valid then
-		gui.destroy() --Close GUI
-	end
-	globalCall("TurretGUI")[id] = nil --Delete GUI metadata
+	destroy_gui(id)
 	globalCall("Clipboard")[id] = nil --Delete clipboard data
 end
 
@@ -2085,7 +2078,7 @@ local function check_config() --Compile a list of all valid config entries
 			end
 		end
 	end
-	if UseBobsDefault == true and game.entity_prototypes["bob-sniper-turret-1"] ~= nil then --Gather Bob's turrets
+	if UseBobsDefault == true and game.active_mods["bobwarfare"] ~= nil then --Gather Bob's turrets
 		local BobsDefault = BobsDefault or true
 		for turret, entity in pairs(game.entity_prototypes) do
 			if entity.type == "ammo-turret" and starts_with(turret, "bob-") then --Find turrets with names prefixed by "bob-"
@@ -2115,8 +2108,11 @@ local function update_requests(updatedTurrets) --Update the request slots of tur
 		if logicTurret ~= nil and updatedTurrets[logicTurret.turret.name] ~= nil then --Turret's entry has changed
 			local config = globalCall("LogicTurretConfig")[logicTurret.turret.name]
 			if config == nil then --Turret's entry was removed
-				move_ammo(logicTurret.stash, logicTurret.magazine)
-				move_ammo(logicTurret.trash, logicTurret.magazine)
+				local magazine = turret.get_inventory(defines.inventory.turret_ammo)
+				for i = 1, #magazine do
+					move_ammo(logicTurret.stash, magazine[i])
+					move_ammo(logicTurret.trash, magazine[i])
+				end
 				spill_stack(logicTurret.turret, logicTurret.stash)
 				spill_stack(logicTurret.turret, logicTurret.trash)
 				destroy_components(logicTurret)
@@ -2142,8 +2138,11 @@ local function update_requests(updatedTurrets) --Update the request slots of tur
 			if logicTurret == nil then
 				table.remove(turretArray, i)
 			elseif updatedTurrets[logicTurret.turret.name] ~= nil and globalCall("LogicTurretConfig")[logicTurret.turret.name] == nil then --Turret's entry was removed
-				move_ammo(logicTurret.stash, logicTurret.magazine)
-				move_ammo(logicTurret.trash, logicTurret.magazine)
+				local magazine = turret.get_inventory(defines.inventory.turret_ammo)
+				for i = 1, #magazine do
+					move_ammo(logicTurret.stash, magazine[i])
+					move_ammo(logicTurret.trash, magazine[i])
+				end
 				spill_stack(logicTurret.turret, logicTurret.stash)
 				spill_stack(logicTurret.turret, logicTurret.trash)
 				destroy_components(logicTurret)
@@ -2217,10 +2216,10 @@ local function set_autofill(lists) --Set Autofill profiles for new and updated t
 		}
 		for turret, ammo in pairs(turretList) do
 			local found = false
-			for i = 1, #autofillSets do --Check if the requested ammo matches any of Autofill's item sets
-				for j = 1, #autofillSets[i] do
-					if ammo == autofillSets[i][j] then --Match found
-						ammo = autofillSets[i] --Autofill will use the whole set instead of a single item
+			for _, itemArray in pairs(autofillSets) do --Check if the requested ammo matches any of Autofill's item sets
+				for i, item in pairs(itemArray) do
+					if ammo == item then --Match found
+						ammo = itemArray --Autofill will use the whole set instead of a single item
 						found = true
 						break
 					end
@@ -2249,8 +2248,7 @@ local function decorate_workshop() --Remove obstructions and pave the workshop i
 	local flooring = {}
 	for x = -32, 31 do
 		for y = -32, 31 do
-			local tile = {name = "concrete", position = {x, y}}
-			flooring[#flooring + 1] = tile
+			flooring[#flooring + 1] = {name = "concrete", position = {x, y}}
 		end
 	end
 	workshop.set_tiles(flooring)
@@ -2279,22 +2277,7 @@ end
 
 --Prototype analysis--------------------------------------------------------------------------------
 local function sort_ammo_types() --Compile lists of ammo categories and the turrets that can use them
-	local function valid_ammo(turret, ammo) --Tests if a turret can use an ammo type
-		if turret == nil or ammo == nil then
-			return
-		end
-		local surface = build_workshop() --Uses the workshop, creating it if it doesn't exist
-		local position = surface.find_non_colliding_position(turret, {0, 0}, 0, 1) --Just in case something is in the workshop that shouldn't be
-		if position ~= nil then
-			local testTurret = surface.create_entity{name = turret, position = position, force = "neutral"} --Create a test turret
-			if testTurret ~= nil and testTurret.valid then
-				local test = testTurret.can_insert({name = ammo}) --Can the turret use this ammo?
-				testTurret.destroy() --Destroy test turret
-				return test --Return test result
-			end
-		end
-		return false --Something went wrong; test fails by default
-	end
+	local surface = build_workshop() --Use the workshop, creating it if it doesn't exist
 	local ammoTypes = {}
 	local turretAmmo = {}
 	for ammo, item in pairs(game.item_prototypes) do
@@ -2305,12 +2288,19 @@ local function sort_ammo_types() --Compile lists of ammo categories and the turr
 	end
 	for turret, entity in pairs(game.entity_prototypes) do
 		if entity.type == "ammo-turret" then
-			for ammo, category in pairs(ammoTypes) do
-				if valid_ammo(turret, ammo) then --Turret's ammo category matches the item's ammo category
-					if turretAmmo[turret] == nil then
-						turretAmmo[turret] = {[0] = category} --Save category as index zero
+			local position = surface.find_non_colliding_position(turret, {0, 0}, 0, 1) --In case something is in the workshop that shouldn't be
+			if position ~= nil then
+				local testTurret = surface.create_entity{name = turret, position = position, force = "neutral"} --Create a test turret
+				if testTurret ~= nil and testTurret.valid then
+					for ammo, category in pairs(ammoTypes) do
+						if testTurret.can_insert({name = ammo}) then --Turret's ammo category matches the item's ammo category
+							if turretAmmo[turret] == nil then
+								turretAmmo[turret] = {[0] = category} --Save category as index zero
+							end
+							turretAmmo[turret][#turretAmmo[turret] + 1] = ammo --Save as array
+						end
 					end
-					turretAmmo[turret][#turretAmmo[turret] + 1] = ammo --Save as array
+					testTurret.destroy() --Destroy test turret
 				end
 			end
 		end
@@ -2345,6 +2335,8 @@ local function set_minable() --Set interfaces' minable status to that of their p
 			for y, logicTurret in pairs(whys) do
 				if is_valid_turret(logicTurret) then
 					logicTurret.interface.minable = (logicTurret.turret.minable and logicTurret.turret.prototype.mineable_properties.minable)
+				else
+					remove_address(index, x, y)
 				end
 			end
 		end
@@ -2357,14 +2349,7 @@ function load_config() --Runs on the first tick after loading a world
 		return
 	end
 	for id in pairs(globalCall("TurretGUI")) do --Close any open GUIs
-		local player = get_player(id)
-		if player ~= nil then
-			local gui = player.gui.center[ModPrefix.."gui"]
-			if gui ~= nil and gui.valid then
-				gui.destroy() --Close GUI
-			end
-		end
-		global.TurretGUI[id] = nil --Delete GUI metadata
+		destroy_gui(id)
 	end
 	for id in pairs(globalCall("Clipboard")) do --Delete any clipboard data
 		global.Clipboard[id] = nil
@@ -2388,7 +2373,7 @@ function load_config() --Runs on the first tick after loading a world
 		script.on_event(defines.events.on_player_selected_area, onSelectedArea)
 		script.on_event(defines.events.on_player_alt_selected_area, onAltSelectedArea)
 		script.on_event(defines.events.on_pre_player_died, onPlayerDied)
-		script.on_event({defines.events.on_player_joined_game, defines.events.on_player_left_game}, onPlayerUpdated)
+		script.on_event({defines.events.on_player_joined_game, defines.events.on_player_left_game}, onPlayerConnection)
 		script.on_event(ModPrefix.."close-gui", onCustomInput)
 	end
 	loaded = true
@@ -2414,34 +2399,35 @@ local function onConfigurationChanged(data) --Update version
 		return
 	end
 	if data.mod_changes[ModName] ~= nil then
-		local function older_than(new_version, old_version)
-			local new = 0
-			local old = 0
-			for n in string.gmatch(new_version, "([^.]+)") do
-				new = new * 100
-				new = new + tonumber(n)
-			end
-			for n in string.gmatch(old_version, "([^.]+)") do
-				old = old * 100
-				old = old + tonumber(n)
-			end
-			return (new > old)
-		end
 		local old_version = data.mod_changes[ModName].old_version
 		if old_version ~= nil then
-			if older_than("1.0.3", old_version) then
+			local function older_than(version)
+				local oldPart = string.gmatch(old_version, "%d+")
+				for newVer in string.gmatch(version, "%d+") do
+					local oldVer = oldPart()
+					if oldVer < newVer then
+						return true
+					elseif oldVer > newVer then
+						return false
+					end
+				end
+				return false
+			end
+			if older_than("1.0.3") then
 				globalCall().Counter = 1
 				globalCall().IdleCounter = 1
 			end
-			if older_than("1.1.0", old_version) then
+			if older_than("1.1.0") then
 				globalCall("ActiveLogicTurrets")
-				globalCall("GhostConnections")
-				game.surfaces[ModPrefix.."workshop"].always_day = true
-				decorate_workshop()
+				local workshop = game.surfaces[ModPrefix.."workshop"]
+				if workshop ~= nil and workshop.valid then
+					workshop.always_day = true
+					decorate_workshop()
+				end
 				for _, force in pairs(game.forces) do
 					force.recipes[TurretRemote].reload()
 				end
-				local arrays = {globalCall("LogicTurrets"), globalCall("IdleLogicTurrets")}
+				local arrays = {globalCall("LogicTurrets"), global.IdleLogicTurrets}
 				for i = 1, #arrays do
 					local turretArray = arrays[i]
 					for j = #turretArray, 1, -1 do
@@ -2452,8 +2438,12 @@ local function onConfigurationChanged(data) --Update version
 							if turret.valid and globalCall("LogicTurretConfig")[turret.name] ~= nil then
 								local logicTurret = add_components(turret)
 								if logicTurret ~= nil then
+									local request = chest.get_request_slot(1)
+									if request ~= nil then
+										request = {ammo = request.name, count = request.count}
+									end
 									logicTurret.chest.get_inventory(defines.inventory.chest)[1].set_stack(chest.get_inventory(defines.inventory.chest)[1])
-									set_request(logicTurret, chest.get_request_slot(1))
+									set_request(logicTurret, request)
 									add_logistic_turret(logicTurret)
 								end
 							end
@@ -2464,12 +2454,15 @@ local function onConfigurationChanged(data) --Update version
 				global.IdleLogicTurrets = nil
 				global.IconSets = nil
 			end
+			if older_than("1.1.1") then
+				for index in pairs(globalCall("GhostConnections")) do
+					global.GhostConnections[index] = nil
+				end
+			end
 		end
 	end
-	if data.mod_changes["autofill"] ~= nil then
-		if data.mod_changes["autofill"].old_version == nil then --Autofill was installed
-			set_autofill({globalCall("LogicTurretConfig")})
-		end
+	if data.mod_changes["autofill"] ~= nil and data.mod_changes["autofill"].old_version == nil then --Autofill was installed
+		set_autofill({globalCall("LogicTurretConfig")})
 	end
 	sort_ammo_types() --Re-create the ammo lists
 	reload_tech() --Reload any technologies that unlock the logistic turret remote and awaken dormant turrets if necessary
@@ -2484,13 +2477,15 @@ script.on_event(ModPrefix.."select-remote", onCustomInput)
 --Remote interface----------------------------------------------------------------------------------
 remote.add_interface(ModName,
 {
-	configure_logistic_turret = function(turret, ammo, count) --Configure a logistic turret
-		if turret == nil or not AllowRemoteConfig then
+	configure_logistic_turret = function(turret, config) --Configure a logistic turret
+		if turret == nil then
 			return
 		end
-		globalCall("RemoteTurretConfig")[turret] = validate_config(turret, {ammo = ammo, count = count})
-		loaded = false
-		script.on_event(defines.events.on_tick, onTick)
+		globalCall("RemoteTurretConfig")[turret] = validate_config(turret, config)
+		if AllowRemoteConfig then
+			loaded = false
+			script.on_event(defines.events.on_tick, onTick)
+		end
 	end,
 
 	change_request_slot = function(turret, ammo, count) --Change a turret's request
@@ -2507,7 +2502,7 @@ remote.add_interface(ModName,
 				elseif type(ammo) == "string" then
 					local ammoData = game.item_prototypes[ammo]
 					if ammoData ~= nil and ammoData.type == "ammo" and globalCall("AmmoCategories")[ammo] == globalCall("TurretAmmoSets", turret.name)[0] then
-						if type(count) == "number" and count >= 1 then
+						if count ~= nil and type(count) == "number" and count >= 1 then
 							count = math.min(math.floor(count), ammoData.stack_size)
 						else
 							count = ammoData.stack_size
@@ -2561,7 +2556,7 @@ remote.add_interface(ModName,
 		return is_remote_enabled(force)
 	end,
 
-	reload_config = function() --Reset data
+	reload_config = function()
 		globalCall().Counter = 1
 		globalCall().IdleCounter = 1
 		decorate_workshop()

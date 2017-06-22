@@ -1,8 +1,8 @@
 ModGFX = "__Macromanaged_Turrets__/graphics/"
 ModPrefix = "MMT-"
 
-require("prototypes.entity")
-require("prototypes.item")
+require("prototypes.entities")
+require("prototypes.items")
 require("prototypes.style")
 
 data:extend(
