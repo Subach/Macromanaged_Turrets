@@ -32,8 +32,10 @@ local loaded = false
 ----------------------------------------------------------------------------------------------------
 --Prototypes----------------------------------------------------------------------------------------
 local onTick
+local load_config
 local get_ghost_data
 local set_circuitry
+local destroy_gui
 
 --Utility-------------------------------------------------------------------------------------------
 local function globalCall(...) --Get or create a global table
@@ -464,7 +466,7 @@ local function spill_stack(entity, stack) --Spill items on the ground and mark t
 	local items = surface.find_entities_filtered{name = "item-on-ground", type = "item-entity", area = { --Note: the "limit" parameter causes issues when spilling multiple stacks
 		{x = pos.x - math.abs(collision.left_top.x) - 3, y = pos.y - math.abs(collision.left_top.y) - 3},
 		{x = pos.x + math.abs(collision.right_bottom.x) + 3, y = pos.y + math.abs(collision.right_bottom.y) + 3}}}
-	count = count < #items and count or #items --If there are items already on the ground, only mark enough to match the number spilled
+	count = math.min(count, #items) --If there are items already on the ground, only mark enough to match the number spilled
 	for i = 1, #items do
 		local item = items[i]
 		if item.valid and item.stack.name == name and not item.to_be_deconstructed(force) then
@@ -680,17 +682,6 @@ local function awaken_dormant_turrets(force) --Awaken the dormant turrets of a f
 		end
 	end
 	global.DormantLogicTurrets[force] = nil --Delete list
-end
-
-local function destroy_gui(id)
-	local player = get_player(id)
-	if player ~= nil then
-		local gui = player.gui.center[ModPrefix.."gui"]
-		if gui ~= nil and gui.valid then
-			gui.destroy() --Close GUI
-		end
-	end
-	globalCall("TurretGUI")[id] = nil --Delete GUI metadata
 end
 
 local function close_turret_gui(turret) --Close this turret's GUI for any player that may have it open
@@ -1761,20 +1752,19 @@ local function open_gui(id) --Create the GUI
 			gui_show_ammo_table(id, gui)
 end
 
-local function close_gui(id) --Close the GUI and apply any saved changes
+local function close_gui(id) --Close the GUI and apply saved changes
 	local player = get_player(id)
 	if player == nil then
 		return
 	end
-	local gui = player.gui
-	local guiElement = gui.center[ModPrefix.."gui"]
-	if guiElement == nil or not guiElement.valid then
+	local gui = player.gui.center[ModPrefix.."gui"]
+	if gui == nil or not gui.valid then
 		globalCall("TurretGUI")[id] = nil --Delete GUI metadata
 		return
 	end
 	local guiData = globalCall("TurretGUI", id)
-	if guiElement[ModPrefix.."logistics-flow"][ModPrefix.."turret-frame"][ModPrefix.."turret-label"][ModPrefix.."edit-field"] ~= nil then --Close the label editor
-		gui_rename_turret(id, gui)
+	if gui[ModPrefix.."logistics-flow"][ModPrefix.."turret-frame"][ModPrefix.."turret-label"][ModPrefix.."edit-field"] ~= nil then --Close the label editor
+		gui_rename_turret(id, player.gui)
 	end
 	for turret, data in pairs(guiData.cache) do
 		for index, cache in pairs(data) do
@@ -1793,8 +1783,19 @@ local function close_gui(id) --Close the GUI and apply any saved changes
 			end
 		end
 	end
-	guiElement.destroy() --Close GUI
+	gui.destroy() --Close GUI
 	global.TurretGUI[id] = nil --Delete GUI metadata
+end
+
+destroy_gui = function(id) --Close the GUI without applying saved changes
+	local player = get_player(id)
+	if player ~= nil then
+		local gui = player.gui.center[ModPrefix.."gui"]
+		if gui ~= nil and gui.valid then
+			gui.destroy() --Close GUI
+		end
+	end
+	globalCall("TurretGUI")[id] = nil --Delete GUI metadata
 end
 
 --Event handlers------------------------------------------------------------------------------------
@@ -2344,7 +2345,7 @@ local function set_minable() --Set interfaces' minable status to that of their p
 end
 
 --Main loader---------------------------------------------------------------------------------------
-function load_config() --Runs on the first tick after loading a world
+load_config = function() --Runs on the first tick after loading a world
 	if loaded then
 		return
 	end
@@ -2402,9 +2403,9 @@ local function onConfigurationChanged(data) --Update version
 		local old_version = data.mod_changes[ModName].old_version
 		if old_version ~= nil then
 			local function older_than(version)
-				local oldPart = string.gmatch(old_version, "%d+")
+				local oldParts = string.gmatch(old_version, "%d+")
 				for newVer in string.gmatch(version, "%d+") do
-					local oldVer = oldPart()
+					local oldVer = oldParts()
 					if oldVer < newVer then
 						return true
 					elseif oldVer > newVer then

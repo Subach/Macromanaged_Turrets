@@ -120,7 +120,7 @@ data:extend(
 		max_health = 0,
 		collision_box = {{0, 0}, {0, 0}},
 		selection_box = {{-0.2, -0.05}, {0.45, 0.6}},
-		energy_source = {type = "electric", usage_priority = "terciary", render_no_network_icon = false, render_no_power_icon = false},
+		energy_source = {type = "electric", usage_priority = "secondary-input", render_no_network_icon = false, render_no_power_icon = false},
 		energy_usage_per_tick = "0kW",
 		picture_on = blank_sprite,
 		picture_off = blank_sprite,
