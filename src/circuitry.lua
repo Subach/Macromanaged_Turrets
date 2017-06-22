@@ -7,6 +7,7 @@ local request_slot = _MOD.DEFINES.request_slot
 local interval = _MOD.ACTIVE_INTERVAL
 local spairs = _util.spairs
 local sort_by_value = _util.sort_by.value
+local get_ammo_category = _logistics.get_ammo_category
 local set_request = _logistics.set_request
 local request_override = _logistics.request_override
 local next = next
@@ -74,7 +75,7 @@ end
 --[ --TODO: Optimize input mode in v0.15
 local function get_network_signals(logicTurret) --Combine signals from red and green networks, filtering out anything that isn't useable ammo
 	local ammo_types = global.AmmoData.Categories
-	local category = global.AmmoData.AmmoLists[logicTurret.entity.name][0] --Turret's ammo category
+	local category = get_ammo_category(logicTurret.entity.name) --Turret's ammo category
 	local input = {}
 	local interface = logicTurret.components.interface
 	for wire, enabled in pairs(get_circuitry(logicTurret).wires) do
@@ -214,7 +215,7 @@ local function set_signal(logicTurret) --Set the combinator's signal
 				input = merged_input
 			end
 			local ammo_types = global.AmmoData.Categories
-			local category = global.AmmoData.AmmoLists[logicTurret.entity.name][0] --Turret's ammo category
+			local category = get_ammo_category(logicTurret.entity.name) --Turret's ammo category
 			local found = false
 			for item, sCount in spairs(input, sort_by_value) do
 				if ammo_types[item] == category then --Item's ammo category matches the turret's ammo category

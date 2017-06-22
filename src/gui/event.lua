@@ -1,6 +1,8 @@
 local _MOD = require("src/constants")
 local _util = require("src/util")
 local _core = require("src/core")
+local _logistics = require("src/logistics")
+local _circuitry = require("src/circuitry")
 local _gui = require("src/gui/buttons")
 local mod_prefix = _MOD.DEFINES.prefix
 local globalCall = _util.globalCall
@@ -112,7 +114,7 @@ local function on_player_alt_selected_area(event) --Quick-paste mode
 	local is_compatible = function() return false end
 	if _MOD.QUICKPASTE_MODE == _MOD.DEFINES.quickpaste_mode.ammo_category then
 		is_compatible = function(turret)
-			if globalCall("AmmoData", "AmmoLists", turret)[0] == category then return true end
+			if _logistics.get_ammo_category(turret) == category then return true end
 		end
 	elseif _MOD.QUICKPASTE_MODE == _MOD.DEFINES.quickpaste_mode.turret_name then
 		is_compatible = function(turret)
@@ -138,22 +140,22 @@ local function on_player_alt_selected_area(event) --Quick-paste mode
 				if logicTurret ~= nil then
 					_gui.interrupt(entity) --Close this turret's GUI for all players
 					if circuitry ~= nil and _MOD.QUICKPASTE_BEHAVIOR then
-						_core.circuitry.set_circuitry(logicTurret, circuitry.mode, circuitry.wires)
+						_circuitry.set_circuitry(logicTurret, circuitry.mode, circuitry.wires)
 						if paste_data.bUnit == nil then
 							paste_data.bUnit = _gui.get_label(logicTurret, id)
 						end
 						paste_data.bCount = paste_data.bCount + 1
 					end
-					if _core.circuitry.get_circuitry(logicTurret).mode == _MOD.DEFINES.circuit_mode.set_requests then --Request slot is overridden by a circuit network
+					if _circuitry.get_circuitry(logicTurret).mode == _MOD.DEFINES.circuit_mode.set_requests then --Request slot is overridden by a circuit network
 						if paste_data.oUnit == nil then
 							paste_data.oUnit = _gui.get_label(logicTurret, id)
 						end
 						paste_data.oCount = paste_data.oCount + 1
 					else
 						if ammo == _MOD.DEFINES.blank_in_gui then
-							_core.logistics.set_request(logicTurret, "empty")
+							_logistics.set_request(logicTurret, _MOD.DEFINES.blank_request)
 						else
-							_core.logistics.set_request(logicTurret, {ammo = ammo, count = count})
+							_logistics.set_request(logicTurret, {ammo = ammo, count = count})
 						end
 						if paste_data.rUnit == nil then
 							paste_data.rUnit = _gui.get_label(logicTurret, id)

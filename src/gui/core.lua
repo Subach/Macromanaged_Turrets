@@ -1,6 +1,8 @@
 local _MOD = require("src/constants")
 local _util = require("src/util")
 local _core = require("src/core")
+local _logistics = require("src/logistics")
+local _circuitry = require("src/circuitry")
 local mod_prefix = _MOD.DEFINES.prefix
 local globalCall = _util.globalCall
 
@@ -26,7 +28,7 @@ end
 
 local function get_network(logicTurret) --Check if the turret is connected to a circuit network --TODO: Add network_id and support multiple networks in v0.15
 	local networks = logicTurret.components.interface.circuit_connected_entities
-	for wire, enabled in pairs(_core.circuitry.get_circuitry(logicTurret).wires) do
+	for wire, enabled in pairs(_circuitry.get_circuitry(logicTurret).wires) do
 		if enabled and #networks[wire] > 1 then
 			return {"gui-control-behavior.connected-to-network"}
 		end
@@ -119,7 +121,7 @@ local function show_control_panel(id, gui) --Updates the paste icons according t
 	local control_panel = gui_element.add{type = "flow", name = mod_prefix.."panel-flow", direction = "horizontal", style = "slot_table_spacing_flow_style"}
 	if clipboard ~= nil then
 		local category, ammo, count = clipboard.category, clipboard.ammo, clipboard.count --Clipboard contents
-		if ammo == _MOD.DEFINES.blank_in_gui or globalCall("AmmoData", "AmmoLists", turret)[0] == category then --Current turret's ammo category matches the copied turret's
+		if ammo == _MOD.DEFINES.blank_in_gui or _logistics.get_ammo_category(turret) == category then --Current turret's ammo category matches the copied turret's
 			local tooltip = {"MMT.gui.paste-match-empty", turret_name}
 			if ammo ~= _MOD.DEFINES.blank_in_gui then
 				tooltip = {"MMT.gui.paste-match", turret_name, {"MMT.gui.item", game.item_prototypes[ammo].localised_name, count}}
@@ -156,7 +158,7 @@ end
 local function show_wires(id, gui) --Show, hide, or update the curret turret's wire options
 	local gui_element = gui.center[mod_prefix.."gui"][mod_prefix.."circuitry-frame"]
 	local gui_data, turret, index, cache = get_data(id)
-	local circuitry = cache.circuitry or _core.circuitry.get_circuitry(gui_data.logicTurrets[turret][index])
+	local circuitry = cache.circuitry or _circuitry.get_circuitry(gui_data.logicTurrets[turret][index])
 	if circuitry.mode == _MOD.DEFINES.circuit_mode.off then
 		if gui_element[mod_prefix.."connect-flow"] ~= nil then
 			gui_element[mod_prefix.."connect-flow"].destroy()
@@ -191,7 +193,7 @@ local function show_circuit_panel(id, gui) --Show the current turret's circuitry
 	end
 	local gui_data, turret, index, cache = get_data(id)
 	local logicTurret = gui_data.logicTurrets[turret][index]
-	local circuitry = cache.circuitry or _core.circuitry.get_circuitry(logicTurret)
+	local circuitry = cache.circuitry or _circuitry.get_circuitry(logicTurret)
 	gui_element[mod_prefix.."network-label"].caption = get_network(logicTurret)
 	gui_element[mod_prefix.."mode-flow"][mod_prefix.."mode-table"][mod_prefix.._MOD.DEFINES.circuit_mode.off.."-button"].sprite = ""
 	gui_element[mod_prefix.."mode-flow"][mod_prefix.."mode-table"][mod_prefix.._MOD.DEFINES.circuit_mode.send_contents.."-button"].sprite = ""
@@ -203,8 +205,8 @@ end
 local function show_ammo_table(id, gui) --Shows the list of ammo the current turret can request
 	local gui_element = gui.center[mod_prefix.."gui"][mod_prefix.."logistics-flow"][mod_prefix.."turret-frame"]
 	local gui_data, turret, index, cache = get_data(id)
-	local request = cache.request or _core.logistics.get_request(gui_data.logicTurrets[turret][index])
-	local ammo_list = globalCall("AmmoData", "AmmoLists", turret) --The list of ammo the turret can request
+	local request = cache.request or _logistics.get_request(gui_data.logicTurrets[turret][index])
+	local ammo_list = _logistics.get_ammo_list(turret) --The list of ammo the turret can use
 	if gui_element[mod_prefix.."ammo-table"] ~= nil then
 		gui_element[mod_prefix.."ammo-table"].destroy() --Remove the previous turret's list
 	end
@@ -224,7 +226,7 @@ local function show_request(id, gui) --Show the current turret's request
 	local gui_element = gui.center[mod_prefix.."gui"][mod_prefix.."logistics-flow"][mod_prefix.."turret-frame"]
 	local gui_data, turret, index, cache = get_data(id)
 	local logicTurret = gui_data.logicTurrets[turret][index]
-	local request = _core.logistics.get_request(logicTurret)
+	local request = _logistics.get_request(logicTurret)
 	local caption = _MOD.DEFINES.blank_in_gui
 	local sprite = ""
 	local tooltip = {"MMT.gui.stack", 0}
@@ -304,7 +306,7 @@ local function open(id) --Create the GUI
 					control_flow.add{type = "sprite-button", name = mod_prefix.."next-button", style = mod_prefix.."nav", sprite = mod_prefix.."next"}
 					show_control_panel(id, gui)
 			local logicTurret = gui_data.logicTurrets[turret][gui_data.index[turret]]
-			local request = _core.logistics.get_request(logicTurret)
+			local request = _logistics.get_request(logicTurret)
 			local caption = _MOD.DEFINES.blank_in_gui
 			local sprite = ""
 			local tooltip = {"MMT.gui.stack", 0}
@@ -384,13 +386,13 @@ local function close(id) --Close the GUI and apply saved changes
 					local request = cache.request
 					interrupt(logicTurret.entity, id) --Close this turret's GUI for all players
 					if circuitry ~= nil then --Turret has a cached control behavior
-						_core.circuitry.set_circuitry(logicTurret, circuitry.mode, circuitry.wires)
+						_circuitry.set_circuitry(logicTurret, circuitry.mode, circuitry.wires)
 					end
 					if request ~= nil then --Turret has a cached request
 						if request.name == _MOD.DEFINES.blank_in_gui then
-							_core.logistics.set_request(logicTurret, "empty")
+							_logistics.set_request(logicTurret, _MOD.DEFINES.blank_request)
 						else
-							_core.logistics.set_request(logicTurret, {ammo = request.name, count = request.count})
+							_logistics.set_request(logicTurret, {ammo = request.name, count = request.count})
 						end
 					end
 				end

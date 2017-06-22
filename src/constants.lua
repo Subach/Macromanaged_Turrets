@@ -1,4 +1,4 @@
-local n, v = "Macromanaged_Turrets", "1.1.4"
+local n, v = "Macromanaged_Turrets", "1.1.5"
 local l, p = "MIT License", "MMT-"
 local m, s = "Macros", "Subach"
 local config = (type(require("config")) == "table") and require("config") or {}
@@ -18,6 +18,7 @@ return { _NAME = n, _VERSION = v, _LICENSE = l, _AUTHOR = {name = m, alias = s},
 			select_remote = p.."select-remote"
 		},
 		blank_in_gui = "BIG-MMT", --GIANT ROBO-SCORPION™ not included
+		blank_request = "empty",
 		circuit_mode =
 		{
 			off = "off",

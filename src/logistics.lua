@@ -7,6 +7,28 @@ local ceil = math.ceil
 local floor = math.floor
 local infinity = math.huge
 
+local function get_ammo_list(turret) --Get a list of all the ammo a turret can use
+	return globalCall("AmmoData", "AmmoLists")[turret]
+end
+
+local function get_ammo_category(turret) --Get a turret's ammo category
+	local ammo_list = get_ammo_list(turret)
+	if ammo_list ~= nil then
+		return ammo_list[0] -- Turret's ammo category
+	end
+end
+
+local function turret_can_request(turret, ammo) --Check if a turret can use a type of ammo
+	local ammo_category = globalCall("AmmoData", "Categories")[ammo]
+	if ammo_category ~= nil then
+		local category = get_ammo_category(turret)
+		if category ~= nil and category == ammo_category then --Turret's ammo category matches the item's ammo category
+			return true
+		end
+	end
+	return false
+end
+
 local function get_insert_limit(logicTurret) --Get a turret's insert limit
 	local limit = logicTurret.components.chest.get_request_slot(request_slot.limit)
 	if limit ~= nil then
@@ -57,10 +79,11 @@ local function request_override(logicTurret, flag) --Get or change a turret's ov
 end
 
 local function set_request(logicTurret, request) --Set the chest's request slot
+	local turret = logicTurret.entity.name
 	local chest = logicTurret.components.chest
-	local config = globalCall("LogicTurretConfig")[logicTurret.entity.name]
-	if request == nil or request == "empty" then
-		if config == "empty" then --New request is the same as the default
+	local config = globalCall("LogicTurretConfig")[turret]
+	if request == nil or request == _MOD.DEFINES.blank_request then
+		if config == _MOD.DEFINES.blank_request then --New request is the same as the default
 			request_override(logicTurret, false) --Remove override flag
 		else
 			request_override(logicTurret, true) --Set override flag
@@ -68,18 +91,22 @@ local function set_request(logicTurret, request) --Set the chest's request slot
 		chest.clear_request_slot(request_slot.main) --Remove request flag
 		chest.clear_request_slot(request_slot.limit) --Remove insert limit flag
 	else
-		local limit = {name = request_flag.half, count = 1} --Split single ammo item between the turret and chest
-		if request.count > 1 then
-			limit.name = request_flag.full
-			limit.count = ceil(request.count / 2) --Split ammo between the turret and chest
+		local ammo = request.ammo
+		if turret_can_request(turret, ammo) then
+			local count = request.count
+			local limit = {name = request_flag.half, count = 1} --Split single ammo item between the turret and chest
+			if count > 1 then
+				limit.name = request_flag.full
+				limit.count = ceil(count / 2) --Split ammo between the turret and chest
+			end
+			if config ~= _MOD.DEFINES.blank_request and ammo == config.ammo and count == config.count then --New request is the same as the default
+				request_override(logicTurret, false) --Remove override flag
+			else
+				request_override(logicTurret, true) --Set override flag
+			end
+			chest.set_request_slot({name = ammo, count = math.max(count - limit.count, 1)}, request_slot.main) --Set request flag
+			chest.set_request_slot(limit, request_slot.limit) --Set insert limit flag
 		end
-		if config ~= "empty" and request.ammo == config.ammo and request.count == config.count then --New request is the same as the default
-			request_override(logicTurret, false) --Remove override flag
-		else
-			request_override(logicTurret, true) --Set override flag
-		end
-		chest.set_request_slot({name = request.ammo, count = math.max(request.count - limit.count, 1)}, request_slot.main) --Set request flag
-		chest.set_request_slot(limit, request_slot.limit) --Set insert limit flag
 	end
 end
 --[ --TODO: Use new SimpleItemStack in v0.15
@@ -168,10 +195,13 @@ end
 
 return
 {
+	get_ammo_category = get_ammo_category,
+	get_ammo_list = get_ammo_list,
 	get_insert_limit = get_insert_limit,
 	get_request = get_request,
 	move_ammo = move_ammo,
 	request_override = request_override,
 	set_request = set_request,
-	transfer_inventory = transfer_inventory
+	transfer_inventory = transfer_inventory,
+	turret_can_request = turret_can_request
 }

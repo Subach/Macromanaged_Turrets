@@ -34,9 +34,9 @@ local function on_init() --Initialize globals
 	globalCall("GhostData", "BlueWire", "Log")
 	globalCall("GhostData", "BlueWire", "Queue")
 	globalCall("GhostData", "BlueWire").Tick = 1
-	globalCall().ActiveCounter = 1
-	globalCall().IdleCounter = 1
-	_core.sort_ammo_types() --Create lists of ammo categories
+	global.ActiveCounter = 1
+	global.IdleCounter = 1
+	_loader.sort_ammo_types() --Create lists of ammo categories
 	on_load()
 end
 
@@ -53,12 +53,12 @@ local function on_configuration_changed(data) --Update mod
 			if _util.is_older_than("1.1.4", old_version) then _migration.patch_to("1.1.4") end
 		end
 	end
-	if mod_changes["autofill"] ~= nil and mod_changes["autofill"].old_version == nil then --Autofill was installed
-		_loader.autofill.set_profiles({globalCall("LogicTurretConfig")})
-	end
-	_core.sort_ammo_types() --Re-create the ammo lists
-	_core.reload_tech() --Reload any technologies that unlock the logistic turret remote and awaken dormant turrets if necessary
+	_loader.sort_ammo_types() --Re-create the ammo lists
+	_loader.reload_tech() --Reload any technologies that unlock the logistic turret remote and awaken dormant turrets if necessary
 	_loader.fix_components() --Validate and fix logistic turret entities
+	if mod_changes["autofill"] ~= nil and mod_changes["autofill"].old_version == nil then --Autofill was installed
+		_loader.autofill.set_profiles(globalCall("LogicTurretConfig"))
+	end
 end
 
 local function on_event(event) --Run events in protected mode

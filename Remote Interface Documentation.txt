@@ -1,4 +1,4 @@
-Macromanaged Turrets v1.1.4
+Macromanaged Turrets v1.1.5
 Remote Inteface API
 
 
@@ -18,7 +18,8 @@ mod_info()                                 -- Displays information about the mod
 configure_logistic_turret(turret, config)
 - Configure a type of logistic turret
 - This mod will only work with turrets that have been configured as logistic turrets
-- Only needs to be called once, ideally during on_init
+- Only needs to be called once, ideally during on_init, but may be called anytime except during on_load
+- Passing an invalid second argument (including nil) will delete the turret's remote config entry
 - Parameters:
   - turret :: string; the name of a turret prototype
   - config :: true or "empty" or a table:
@@ -92,7 +93,7 @@ change_custom_label(turret, player, label)
   - If the operation was unsuccessful:
     - false :: boolean
 - Example:
-  remote.call("Macromanaged_Turrets", "change_custom_label", game.player.selected, , game.player, "Example Custom Label")
+  remote.call("Macromanaged_Turrets", "change_custom_label", game.player.selected, game.player, "Example Custom Label")
 
 
 get_default_configuration(turret)

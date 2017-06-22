@@ -1,13 +1,11 @@
 local _MOD = require("src/constants")
 local _util = require("src/util")
 local _core = require("src/core")
+local _logistics = require("src/logistics")
+local _circuitry = require("src/circuitry")
 local globalCall = _util.globalCall
 
 local _migration = {}
-
-local function patch_to(version, ...)
-	return _migration[version](...)
-end
 
 _migration["1.1.4"] = function()
 	globalCall("TurretArrays", "Active")
@@ -43,14 +41,14 @@ _migration["1.1.4"] = function()
 						if logicTurret.chest.valid then
 							local request = logicTurret.chest.get_request_slot(1)
 							if request == nil then
-								_core.logistics.set_request(new_logicTurret, "empty")
+								_logistics.set_request(new_logicTurret, _MOD.DEFINES.blank_request)
 							elseif logicTurret.insertLimit == nil then
-								_core.logistics.set_request(new_logicTurret, globalCall("LogicTurretConfig")[new_logicTurret.entity.name])
+								_logistics.set_request(new_logicTurret, globalCall("LogicTurretConfig")[new_logicTurret.entity.name])
 							else
 								if logicTurret.insertLimit < math.huge then
 									request.count = request.count + math.floor(logicTurret.insertLimit)
 								end
-								_core.logistics.set_request(new_logicTurret, {ammo = request.name, count = request.count})
+								_logistics.set_request(new_logicTurret, {ammo = request.name, count = request.count})
 							end
 							new_logicTurret.components.chest.get_inventory(defines.inventory.chest)[1].set_stack(logicTurret.chest.get_inventory(defines.inventory.chest)[1])
 						end
@@ -61,7 +59,7 @@ _migration["1.1.4"] = function()
 							end
 						end
 						if logicTurret.circuitry ~= nil then
-							_core.circuitry.set_circuitry(new_logicTurret, logicTurret.circuitry.mode, logicTurret.circuitry.wires)
+							_circuitry.set_circuitry(new_logicTurret, logicTurret.circuitry.mode, logicTurret.circuitry.wires)
 						end
 						if logicTurret.bin.valid then logicTurret.bin.destroy() end
 						if logicTurret.chest.valid then logicTurret.chest.destroy() end
@@ -106,7 +104,10 @@ _migration["1.1.0"] = function()
 	end
 	global.IconSets = nil
 	global.IdleLogicTurrets = nil
-	_core.decorate_workshop()
+end
+
+local function patch_to(version, ...)
+	return _migration[version](...)
 end
 
 return

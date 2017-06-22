@@ -1,6 +1,9 @@
 local _MOD = require("src/constants")
 local _util = require("src/util")
 local _core = require("src/core")
+local _logistics = require("src/logistics")
+local _circuitry = require("src/circuitry")
+local _blueprint = require("src/blueprint/main")
 local request_main = _MOD.DEFINES.request_slot.main
 local active_interval = _MOD.ACTIVE_INTERVAL
 local active_timer = _MOD.ACTIVE_TIMER
@@ -9,10 +12,10 @@ local update_interval = _MOD.UPDATE_INTERVAL
 local update_tick = _MOD.UPDATE_TICK
 local table_compact = _util.table_compact
 local get_valid_turret = _core.get_valid_turret
-local get_insert_limit = _core.logistics.get_insert_limit
-local move_ammo = _core.logistics.move_ammo
-local set_signal = _core.circuitry.set_signal
-local ghost_handler = _core.blueprint.on_tick
+local get_insert_limit = _logistics.get_insert_limit
+local move_ammo = _logistics.move_ammo
+local set_signal = _circuitry.set_signal
+local ghost_handler = _blueprint.on_tick
 
 local function in_combat(logicTurret) --Compare damage dealt to a cached value
 	local damage = logicTurret.entity.damage_dealt
@@ -24,7 +27,7 @@ end
 
 local function request_fulfilled(logicTurret) --Check if a turret needs reloading
 	local stash = logicTurret.inventory.stash
-	if not stash.valid_for_read then --Stash is empty
+	if not stash.valid_for_read then --Stash is empty, no need for the turret to be active if there's nothing to move
 		return true
 	else
 		local magazine = logicTurret.inventory.magazine

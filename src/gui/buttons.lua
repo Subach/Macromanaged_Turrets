@@ -1,6 +1,8 @@
 local _MOD = require("src/constants")
 local _util = require("src/util")
 local _core = require("src/core")
+local _logistics = require("src/logistics")
+local _circuitry = require("src/circuitry")
 local _gui = require("src/gui/core")
 local mod_prefix = _MOD.DEFINES.prefix
 local globalCall = _util.globalCall
@@ -58,7 +60,7 @@ local function click_paste(id, gui, pasteMode) --Paste the contents of the clipb
 			end
 		else
 			is_compatible = function(turret)
-				if turret == current_turret and globalCall("AmmoData", "AmmoLists", turret)[0] == category then return true end --Currently selected turret type and matching ammo type
+				if turret == current_turret and _logistics.get_ammo_category(turret) == category then return true end --Currently selected turret type and matching ammo type
 			end
 		end
 	elseif pasteMode == "all" then --Always available
@@ -66,7 +68,7 @@ local function click_paste(id, gui, pasteMode) --Paste the contents of the clipb
 			is_compatible = function() return true end --All turrets
 		else
 			is_compatible = function(turret)
-				if globalCall("AmmoData", "AmmoLists", turret)[0] == category then return true end --All turrets with matching ammo type
+				if _logistics.get_ammo_category(turret) == category then return true end --All turrets with matching ammo type
 			end
 		end
 	end
@@ -84,7 +86,7 @@ local function click_paste(id, gui, pasteMode) --Paste the contents of the clipb
 					gui_data.cache[turret][i] = {}
 				end
 				local logicTurret = logicTurrets[i]
-				local circuitry = cache.circuitry or _core.circuitry.get_circuitry(logicTurret)
+				local circuitry = cache.circuitry or _circuitry.get_circuitry(logicTurret)
 				if circuitry.mode == _MOD.DEFINES.circuit_mode.set_requests then --Request slot is overridden by a circuit network
 					if paste_data.oUnit == nil then
 						paste_data.oUnit = _gui.get_label(logicTurret, id)
@@ -149,7 +151,7 @@ local function click_circuitry(id, gui) --Show or hide the circuit network panel
 	end
 	local gui_data, turret, index, cache = _gui.get_data(id)
 	local logicTurret = gui_data.logicTurrets[turret][index]
-	local circuitry = cache.circuitry or _core.circuitry.get_circuitry(logicTurret)
+	local circuitry = cache.circuitry or _circuitry.get_circuitry(logicTurret)
 	local circuit_frame = gui_element.add{type = "frame", name = mod_prefix.."circuitry-frame", direction = "vertical", style = "inner_frame_in_outer_frame_style", caption = {"gui-control-behavior.circuit-connection"}}
 		circuit_frame.style.font = "default-bold"
 		circuit_frame.style.minimal_width = 161
@@ -195,7 +197,7 @@ local function click_save(id, gui) --Save the currently displayed request to be 
 	local gui_element = gui.center[mod_prefix.."gui"][mod_prefix.."logistics-flow"][mod_prefix.."turret-frame"]
 	local gui_data, turret, index, cache = _gui.get_data(id)
 	local logicTurret = gui_data.logicTurrets[turret][index]
-	local circuitry = cache.circuitry or _core.circuitry.get_circuitry(logicTurret)
+	local circuitry = cache.circuitry or _circuitry.get_circuitry(logicTurret)
 	local label = gui_element[mod_prefix.."turret-label"].caption
 	local message = {"MMT.message.save-empty", label}
 	if circuitry.mode == _MOD.DEFINES.circuit_mode.set_requests then --Request slot is overridden by a circuit network
@@ -204,7 +206,7 @@ local function click_save(id, gui) --Save the currently displayed request to be 
 		if gui_data.cache[turret][index] == nil then
 			gui_data.cache[turret][index] = {}
 		end
-		local request = cache.request or _core.logistics.get_request(logicTurret)
+		local request = cache.request or _logistics.get_request(logicTurret)
 		local ammo = gui_element[mod_prefix.."request-flow"][mod_prefix.."item-button"].caption
 		local count = tonumber(gui_element[mod_prefix.."request-flow"][mod_prefix.."count-field"].text)
 		if ammo == _MOD.DEFINES.blank_in_gui or count == nil or count < 1 then --Request slot will be cleared
@@ -231,7 +233,7 @@ end
 local function click_copy(id, gui) --Save the currently displayed request to the clipboard
 	local gui_element = gui.center[mod_prefix.."gui"][mod_prefix.."logistics-flow"][mod_prefix.."turret-frame"][mod_prefix.."request-flow"]
 	local gui_data, turret, index, cache = _gui.get_data(id)
-	local category = globalCall("AmmoData", "AmmoLists", turret)[0]
+	local category = _logistics.get_ammo_category(turret) --Turret's ammo category
 	local ammo = gui_element[mod_prefix.."item-button"].caption
 	local count = tonumber(gui_element[mod_prefix.."count-field"].text)
 	local message = {"MMT.message.copy-empty"}
@@ -246,7 +248,7 @@ local function click_copy(id, gui) --Save the currently displayed request to the
 		message = {"MMT.message.copy", {"MMT.gui.item", ammo_data.localised_name, count}}
 	end
 	if gui.player.force.technologies["circuit-network"].researched then --Save the control behavior
-		local circuitry = cache.circuitry or _core.circuitry.get_circuitry(gui_data.logicTurrets[turret][index])
+		local circuitry = cache.circuitry or _circuitry.get_circuitry(gui_data.logicTurrets[turret][index])
 		globalCall("Clipboard", id).circuitry = {mode = circuitry.mode, wires = {red = circuitry.wires.red, green = circuitry.wires.green}}
 		local bMessage = {"MMT.message.copy-behavior-off"}
 		if circuitry.mode ~= _MOD.DEFINES.circuit_mode.off then
@@ -280,7 +282,7 @@ end
 local function click_mode(id, gui, mode) --Set the mode of operation
 	local gui_element = gui.center[mod_prefix.."gui"][mod_prefix.."circuitry-frame"][mod_prefix.."mode-flow"][mod_prefix.."mode-table"]
 	local gui_data, turret, index, cache = _gui.get_data(id)
-	local circuitry = cache.circuitry or _core.circuitry.get_circuitry(gui_data.logicTurrets[turret][index])
+	local circuitry = cache.circuitry or _circuitry.get_circuitry(gui_data.logicTurrets[turret][index])
 	if mode == circuitry.mode then --Already selected
 		return
 	end
@@ -296,7 +298,7 @@ end
 local function click_wire(id, gui, wire) --Set the wires the turret will connect to
 	local gui_element = gui.center[mod_prefix.."gui"][mod_prefix.."circuitry-frame"][mod_prefix.."connect-flow"][mod_prefix.."wire-flow"]
 	local gui_data, turret, index, cache = _gui.get_data(id)
-	local circuitry = cache.circuitry or _core.circuitry.get_circuitry(gui_data.logicTurrets[turret][index])
+	local circuitry = cache.circuitry or _circuitry.get_circuitry(gui_data.logicTurrets[turret][index])
 	if gui_data.cache[turret][index] == nil then
 		gui_data.cache[turret][index] = {}
 	end

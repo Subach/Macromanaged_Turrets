@@ -1,6 +1,8 @@
 local _MOD = require("src/constants")
 local _util = require("src/util")
 local _core = require("src/core")
+local _logistics = require("src/logistics")
+local _circuitry = require("src/circuitry")
 local _loader = require("src/loader")
 local _gui = require("src/gui/main")
 local protect = require("src/protect")
@@ -52,21 +54,21 @@ end
 local function change_request_slot(turret, ammo, count)
 	local logicTurret = remote_turret_lookup(turret)
 	if logicTurret == nil then return false end
-	if _core.circuitry.get_circuitry(logicTurret).mode ~= _MOD.DEFINES.circuit_mode.set_requests then
-		if ammo == nil or ammo == "empty" or (count ~= nil and type(count) == "number" and count < 1) then
+	if _circuitry.get_circuitry(logicTurret).mode ~= _MOD.DEFINES.circuit_mode.set_requests then
+		if ammo == nil or ammo == _MOD.DEFINES.blank_request or (count ~= nil and type(count) == "number" and count < 1) then
 			_gui.interrupt(turret)
-			_core.logistics.set_request(logicTurret, "empty")
+			_logistics.set_request(logicTurret, _MOD.DEFINES.blank_request)
 			return true
 		elseif type(ammo) == "string" then
 			local ammo_data = game.item_prototypes[ammo]
-			if ammo_data ~= nil and ammo_data.type == "ammo" and globalCall("AmmoData", "Categories")[ammo] == globalCall("AmmoData", "AmmoLists", turret.name)[0] then
+			if ammo_data ~= nil and ammo_data.type == "ammo" and _logistics.turret_can_request(turret.name, ammo) then
 				if count ~= nil and type(count) == "number" and count >= 1 then
 					count = math.min(math.floor(count), ammo_data.stack_size)
 				else
 					count = ammo_data.stack_size
 				end
 				_gui.interrupt(turret)
-				_core.logistics.set_request(logicTurret, {ammo = ammo, count = count})
+				_logistics.set_request(logicTurret, {ammo = ammo, count = count})
 				return count
 			end
 		end
@@ -100,7 +102,7 @@ local function change_circuit_mode(turret, mode, wires)
 			wires = {red = false, green = false}
 		end
 		_gui.interrupt(turret)
-		_core.circuitry.set_circuitry(logicTurret, mode, wires)
+		_circuitry.set_circuitry(logicTurret, mode, wires)
 		return true
 	end
 	return false
@@ -179,7 +181,7 @@ end
 local function get_request_slot(turret)
 	local logicTurret = remote_turret_lookup(turret)
 	if logicTurret == nil then return end
-	return _core.logistics.get_request(logicTurret)
+	return _logistics.get_request(logicTurret)
 end
 
 -- Get a turret's circuit mode
@@ -197,7 +199,7 @@ end
 local function get_circuit_mode(turret)
 	local logicTurret = remote_turret_lookup(turret)
 	if logicTurret == nil then return end
-	return _util.table_deepcopy(_core.circuitry.get_circuitry(logicTurret))
+	return _util.table_deepcopy(_circuitry.get_circuitry(logicTurret))
 end
 
 -- Get a turret's custom label(s)
@@ -261,13 +263,14 @@ end
 -- Resets most settings and may fix certain problems
 -- Can only be called from the in-game console
 local function reset_mod()
-	if game.player == nil then return end
+	local player = game.player
+	if player == nil or not player.valid then return end
 	globalCall("GhostData", "BlueWire").Tick = 1
-	globalCall().ActiveCounter = 1
-	globalCall().IdleCounter = 1
-	_core.decorate_workshop()
-	_core.sort_ammo_types()
-	_core.reload_tech()
+	global.ActiveCounter = 1
+	global.IdleCounter = 1
+	_gui.destroy(player.index)
+	_loader.sort_ammo_types()
+	_loader.reload_tech()
 	_loader.fix_components()
 	_loader.load_config()
 end
@@ -278,7 +281,7 @@ end
 --   info :: table; a table containing the same information displayed to the player
 local function mod_info()
 	local player = game.player
-	if player == nil then return end
+	if player == nil or not player.valid then return end
 	local info = _util.table_deepcopy(_MOD)
 	info.LOGISTIC_TURRETS = _util.table_deepcopy(globalCall("LogicTurretConfig"))
 	info.DEFINES = nil
@@ -301,7 +304,7 @@ local _remote =
 	mod_info = mod_info
 }
 
-for k, f in pairs(_remote) do
+for k, f in pairs(_remote) do --Run remote calls in protected mode
 	_remote[k] = function(...) return protect(f, ...) end
 end
 

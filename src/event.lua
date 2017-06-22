@@ -1,6 +1,8 @@
 local _MOD = require("src/constants")
 local _util = require("src/util")
 local _core = require("src/core")
+local _logistics = require("src/logistics")
+local _blueprint = require("src/blueprint/main")
 local _gui = require("src/gui/main")
 local globalCall = _util.globalCall
 
@@ -16,7 +18,7 @@ local function on_entity_died(event) --Remove turret from the logistic turret li
 	local logicTurret = _core.lookup_turret(entity)
 	if logicTurret ~= nil then
 		_gui.interrupt(entity) --Close this turret's GUI for all players
-		_core.blueprint:handler(event.name, logicTurret)
+		_blueprint:handler(event.name, logicTurret)
 		_core.destroy_components(logicTurret) --Remove from the logistic turret lists
 	end
 end
@@ -29,7 +31,7 @@ local function on_built_entity(event) --Add turret to the logistic turret list
 	if globalCall("LogicTurretConfig")[entity.name] ~= nil then
 		_core.add_components(entity) --Create logistic turret
 	end
-	_core.blueprint:handler(event.name, entity)
+	_blueprint:handler(event.name, entity)
 end
 
 local function on_pre_mined_entity(event) --Remove turret from the logistic turret list, handle any leftover ammo, and destroy its internal components
@@ -47,7 +49,7 @@ local function on_pre_mined_entity(event) --Remove turret from the logistic turr
 			if entity.name == _MOD.DEFINES.logic_turret.interface then --Player mined the circuit network interface
 				_util.raise_event(defines.events.on_preplayer_mined_item, {entity = turret, player_index = id}) --Raise an event as though the turret was mined
 				if turret.valid then --Check if the turret is still valid after raising the event
-					_core.logistics.transfer_inventory(turret, player) --Transfer the turret's inventory to the player
+					_logistics.transfer_inventory(turret, player) --Transfer the turret's inventory to the player
 					if not turret.has_items_inside() then
 						local health = turret.health / turret.prototype.max_health
 						if health == 1 then
@@ -73,13 +75,13 @@ local function on_pre_mined_entity(event) --Remove turret from the logistic turr
 				end
 				return
 			end
-			_core.logistics.transfer_inventory(turret, player, logicTurret.inventory.stash, logicTurret.inventory.trash) --Transfer the turret's inventory to the player
+			_logistics.transfer_inventory(turret, player, logicTurret.inventory.stash, logicTurret.inventory.trash) --Transfer the turret's inventory to the player
 		else
 			_core.clear_ammo(logicTurret)
 		end
 		_core.destroy_components(logicTurret) --Remove from the logistic turret lists
 	end
-	_core.blueprint:handler(event.name, entity)
+	_blueprint:handler(event.name, entity)
 end
 
 local function on_research_finished(event) --Awaken dormant turrets when the logistic system is researched
@@ -110,10 +112,10 @@ local function on_marked_for_deconstruction(event) --Clear the chest's request s
 	local logicTurret = _core.lookup_turret(entity)
 	if logicTurret ~= nil then
 		_gui.interrupt(entity) --Close this turret's GUI for all players
-		_core.logistics.set_request(logicTurret, "empty")
-		_core.logistics.request_override(logicTurret, true) --Set override flag
+		_logistics.set_request(logicTurret, _MOD.DEFINES.blank_request)
+		_logistics.request_override(logicTurret, true) --Set override flag
 	end
-	_core.blueprint:handler(event.name, entity)
+	_blueprint:handler(event.name, entity)
 end
 
 local function on_canceled_deconstruction(event) --Reset the chest's request slot when deconstruction is canceled
@@ -126,9 +128,9 @@ local function on_canceled_deconstruction(event) --Reset the chest's request slo
 		local logicTurret = _core.lookup_turret(entity)
 		if logicTurret ~= nil then
 			if _core.is_remote_enabled(entity.force) then --Logistic system is researched
-				_core.logistics.set_request(logicTurret, config)
+				_logistics.set_request(logicTurret, config)
 			end
-			_core.logistics.request_override(logicTurret, false) --Remove override flag
+			_logistics.request_override(logicTurret, false) --Remove override flag
 		else --Bots started mining the turret, but didn't finish the job
 			_core.add_components(entity) --Re-create logistic turret
 		end
@@ -215,7 +217,7 @@ end
 
 local function on_player_selected_area(event) --Use the logistic turret remote to open the turret GUI
 	_gui:handler(event.name, event)
-	_core.blueprint:handler(event.name, event)
+	_blueprint:handler(event.name, event)
 end
 
 local function on_custom_input_close_gui(event) --Close the turret GUI

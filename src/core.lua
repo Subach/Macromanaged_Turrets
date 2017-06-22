@@ -188,58 +188,6 @@ local function awaken_dormant_turrets(force) --Awaken the dormant turrets of a f
 	global.TurretArrays.Dormant[force] = nil --Delete list
 end
 
-local function decorate_workshop() --Remove obstructions and pave the workshop in concrete
-	local workshop = game.surfaces[_MOD.DEFINES.workshop]
-	if workshop == nil or not workshop.valid then
-		return
-	end
-	for _, player in pairs(game.players) do
-		if player.valid and player.surface == workshop then
-			player.teleport(player.position, "nauvis") --Kick the player out of the workshop
-		end
-	end
-	for i = 1, 2 do
-		for _, entity in pairs(workshop.find_entities()) do --Destroy all entities, twice
-			if entity.valid then
-				entity.destroy()
-			end
-		end
-	end
-	local workshop_size = 32
-	local flooring = {}
-	for x = -workshop_size, workshop_size - 1 do
-		for y = -workshop_size, workshop_size - 1 do
-			flooring[#flooring + 1] = {name = "concrete", position = {x, y}}
-		end
-	end
-	workshop.set_tiles(flooring)
-	workshop.always_day = true
-	for chunk in workshop.get_chunks() do --Disable standard chunk generation
-		workshop.set_chunk_generated_status(chunk, defines.chunk_generated_status.entities)
-	end
-end
-
-local function build_workshop() --Create a surface to conduct validation checks in
-	local workshop = game.surfaces[_MOD.DEFINES.workshop]
-	if workshop == nil or not workshop.valid then
-		workshop = game.create_surface(_MOD.DEFINES.workshop,
-		{
-			terrain_segmentation = "none",
-			water = "none",
-			starting_area = "none",
-			width = 1,
-			height = 1,
-			peaceful_mode = true
-		})
-		if workshop ~= nil and workshop.valid then
-			decorate_workshop() --Sterilize the workshop
-		else
-			workshop = game.surfaces["nauvis"] --In case something goes wrong
-		end
-	end
-	return workshop
-end
-
 local function lookup_turret(entity) --Get a logistic turret
 	if entity == nil or not entity.valid then
 		return
@@ -259,75 +207,13 @@ local function lookup_turret(entity) --Get a logistic turret
 	end
 end
 
-local function reload_tech() --Reload any technologies that unlock the logistic turret remote and awaken dormant turrets if necessary
-	for name, force in pairs(game.forces) do
-		for _, tech in pairs(force.technologies) do
-			local effects = tech.effects
-			if effects ~= nil then
-				for i = 1, #effects do
-					if effects[i].recipe == "logistic-chest-requester" then
-						tech.reload()
-						break
-					end
-				end
-			end
-		end
-		local logistic_system = force.technologies["logistic-system"]
-		local requester_chest = force.recipes["logistic-chest-requester"]
-		local turret_remote = force.recipes[_MOD.DEFINES.logic_turret.remote]
-		turret_remote.enabled = turret_remote.enabled or (requester_chest ~= nil and requester_chest.enabled) or (logistic_system ~= nil and logistic_system.enabled) --Enable the remote if the logistic system is researched
-		if turret_remote.enabled and globalCall("TurretArrays", "Dormant")[name] ~= nil then --Logistic system is researched
-			awaken_dormant_turrets(name)
-		end
-	end
-end
-
-local function sort_ammo_types() --Compile lists of ammo categories and the turrets that can use them
-	local surface = build_workshop() --Use the workshop, creating it if it doesn't exist
-	local ammo_lists = {}
-	local ammo_types = {}
-	for ammo, item in pairs(game.item_prototypes) do
-		local ammo_type = item.ammo_type
-		if ammo_type ~= nil and not item.has_flag("hidden") then --Skip hidden items
-			ammo_types[ammo] = ammo_type.category --Save as dictionary
-		end
-	end
-	for turret, entity in pairs(game.entity_prototypes) do
-		if entity.type == "ammo-turret" then
-			local pos = surface.find_non_colliding_position(turret, {0, 0}, 0, 1) --In case something is in the workshop that shouldn't be
-			if pos ~= nil then
-				local test_turret = surface.create_entity{name = turret, position = pos, force = "neutral"} --Create a test turret
-				if test_turret ~= nil and test_turret.valid then
-					for ammo, category in pairs(ammo_types) do
-						if test_turret.can_insert({name = ammo}) then --Turret's ammo category matches the item's ammo category
-							if ammo_lists[turret] == nil then
-								ammo_lists[turret] = {[0] = category} --Save category as index zero
-							end
-							ammo_lists[turret][#ammo_lists[turret] + 1] = ammo --Save as array
-						end
-					end
-					test_turret.destroy() --Destroy test turret
-				end
-			end
-		end
-	end
-	_util.save_to_global(ammo_lists, "AmmoData", "AmmoLists") --Save lists in the global table
-	_util.save_to_global(ammo_types, "AmmoData", "Categories")
-end
-
 return
 {
-	logistics = _logistics,
-	circuitry = _circuitry,
-	blueprint = _blueprint,
 	add_components = add_components,
 	awaken_dormant_turrets = awaken_dormant_turrets,
 	clear_ammo = clear_ammo,
-	decorate_workshop = decorate_workshop,
 	destroy_components = destroy_components,
 	get_valid_turret = get_valid_turret,
 	is_remote_enabled = is_remote_enabled,
-	lookup_turret = lookup_turret,
-	reload_tech = reload_tech,
-	sort_ammo_types = sort_ammo_types
+	lookup_turret = lookup_turret
 }

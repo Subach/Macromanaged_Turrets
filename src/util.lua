@@ -127,8 +127,8 @@ local function spill_stack(entity, stack) --Spill items around an entity and mar
 	local name, count = stack.name, stack.count
 	surface.spill_item_stack(pos, stack, true) --Items can also be looted
 	stack.clear()
-	local radius = 3
 	local collision = entity.prototype.collision_box or {left_top = {x = 0, y = 0}, right_bottom = {x = 0, y = 0}}
+	local radius = 3
 	local items = surface.find_entities_filtered{type = "item-entity", name = "item-on-ground", area = { --Note: the "limit" parameter causes issues with deconstruction when spilling multiple stacks
 		left_top = {x = pos.x - abs(collision.left_top.x) - radius, y = pos.y - abs(collision.left_top.y) - radius},
 		right_bottom = {x = pos.x + abs(collision.right_bottom.x) + radius, y = pos.y + abs(collision.right_bottom.y) + radius}}}
@@ -173,22 +173,22 @@ local function table_compact(t, z, n) --Remove nil entries from an array
 	return #t
 end
 
-local function table_deepcopy(object) --Copied from Factorio\data\core\lualib\util.lua
+local function table_deepcopy(t) --Copied from Factorio\data\core\lualib\util.lua
 	local lookup_table = {}
-	local function _copy(_object)
-		if type(_object) ~= "table" or _object.__self ~= nil then
-			return _object
-		elseif lookup_table[_object] ~= nil then
-			return lookup_table[_object]
+	local function copy(object)
+		if type(object) ~= "table" or object.__self ~= nil then
+			return object
+		elseif lookup_table[object] ~= nil then
+			return lookup_table[object]
 		end
 		local new_table = {}
-		lookup_table[_object] = new_table
-		for key, value in pairs(_object) do
-			new_table[_copy(key)] = _copy(value)
+		lookup_table[object] = new_table
+		for key, value in pairs(object) do
+			new_table[copy(key)] = copy(value)
 		end
-		return setmetatable(new_table, getmetatable(_object))
+		return setmetatable(new_table, getmetatable(object))
 	end
-	return _copy(object)
+	return copy(t)
 end
 
 return
