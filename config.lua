@@ -1,4 +1,4 @@
-LogisticTurret = {} -- Do not edit or remove this line
+local MMT = {LogisticTurrets = {}}; local LogisticTurret = MMT.LogisticTurrets -- Do not edit or remove this line
 
 --[[--------------------------------------------------------------------------------------------[[--
   Macromanaged Turrets
@@ -63,9 +63,9 @@ sprite to appear. Changing 'ShowCircuitConnector' to 'false' will disable the sp
 setting is purely cosmetic.
 
 --]]--------------------------------------------------------------------------------------------]]--
-QuickPasteMode = "match-ammo-category"
-QuickPasteCircuitry = true
-ShowCircuitConnector = true
+MMT.QuickPasteMode = "match-ammo-category"
+MMT.QuickPasteCircuitry = true
+MMT.ShowCircuitConnector = true
 
 
 --[[--------------------------------------------------------------------------------------------[[--
@@ -81,8 +81,8 @@ Changing 'UseBobsDefault' to 'false' will disable default logistic functionality
 will still apply.
 
 --]]--------------------------------------------------------------------------------------------]]--
-UseBobsDefault = true
-BobsDefault = {ammo = "piercing-rounds-magazine", count = 10}
+MMT.UseBobsDefault = true
+MMT.BobsDefault = {ammo = "piercing-rounds-magazine", count = 10}
 
 
 --[[--------------------------------------------------------------------------------------------[[--
@@ -95,16 +95,38 @@ You may override any mod-added turret by adding it to the table as per usual, or
 configuring logistic turrets altogether by changing 'AllowRemoteConfig' to 'false'.
 
 --]]--------------------------------------------------------------------------------------------]]--
-AllowRemoteConfig = true
+MMT.AllowRemoteConfig = true
 
 
 --[[--------------------------------------------------------------------------------------------[[--
   Update frequency
 ----------------------------------------------------------------------------------------------------
-This setting controls how often the script checks each logistic turret. The interval is measured in 
-ticks; there are 60 ticks per second. Setting 'TickInterval' to a lower number will update turrets 
-more frequently, while setting it to a higher number will improve performance.
+These settings controls how often the script checks each logistic turret. Intervals are measured in 
+ticks; there are 60 ticks per second.
+
+Setting 'TickInterval' to a lower number will update turrets more frequently, while setting it to a 
+higher number will improve performance. The default TickInterval is 30; the minimum is 10.
+
+If you are experiencing desyncs, setting 'TimeFactor' to a higher number may help. However, setting 
+it too high may cause noticeable lag spikes. The default TimeFactor is 5; the minimum is 5; the 
+maximum is (TickInterval / 2).
 
 --]]--------------------------------------------------------------------------------------------]]--
-TickInterval = 30
+MMT.TickInterval = 30
+MMT.TimeFactor = 5
 
+
+--[[--------------------------------------------------------------------------------------------[[--
+  Uninstallation
+----------------------------------------------------------------------------------------------------
+If you no longer wish to use this mod, do not simply disable it in the mod list. To properly remove 
+this mod, save and exit your game, change 'UninstallMod' to 'true', then load and re-save your game.
+You will then be able to safely remove or disable this mod. Failure to do so will probably delete a 
+lot of ammo from your world.
+
+--]]--------------------------------------------------------------------------------------------]]--
+MMT.UninstallMod = false
+
+
+----------------------------------------------------------------------------------------------------
+return MMT -- Do not edit or remove this line

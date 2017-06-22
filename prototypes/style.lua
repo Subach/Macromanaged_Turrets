@@ -9,7 +9,7 @@ local function nav_button(opts)
 		stretch_monolith_image_to_size = false,
 		monolith_image =
 		{
-			filename = ModGFX.."gui.png",
+			filename = MOD_GFX.."gui.png",
 			priority = "extra-high-no-scale",
 			width = 16,
 			height = 16,
@@ -29,7 +29,7 @@ local function radio_button(opts)
 		stretch_monolith_image_to_size = false,
 		monolith_image =
 		{
-			filename = ModGFX.."gui.png",
+			filename = MOD_GFX.."gui.png",
 			priority = "extra-high-no-scale",
 			width = 10,
 			height = 10,
@@ -49,7 +49,7 @@ local function sprite_button(opts)
 		left_monolith_border = 1,
 		monolith_image =
 		{
-			filename = ModGFX.."gui.png",
+			filename = MOD_GFX.."gui.png",
 			priority = "extra-high-no-scale",
 			width = 36,
 			height = 36,
@@ -63,8 +63,8 @@ local function sprite(opts)
 	return
 	{
 		type = "sprite",
-		name = ModPrefix..opts.name,
-		filename = ModGFX.."gui.png",
+		name = MOD_PREFIX..opts.name,
+		filename = MOD_GFX.."gui.png",
 		priority = "extra-high-no-scale",
 		width = opts.width or 16,
 		height = opts.height or 16,
@@ -89,7 +89,7 @@ data:extend(
 	sprite{name = "bullet", width = 10, height = 10, x = 30, y = 32}
 })
 
-data.raw["gui-style"]["default"][ModPrefix.."index"] =
+data.raw["gui-style"]["default"][MOD_PREFIX.."index"] =
 {
 	type = "label_style",
 	font = "default-small-semibold",
@@ -97,7 +97,7 @@ data.raw["gui-style"]["default"][ModPrefix.."index"] =
 	minimal_width = 46
 }
 
-data.raw["gui-style"]["default"][ModPrefix.."nav"] =
+data.raw["gui-style"]["default"][MOD_PREFIX.."nav"] =
 {
 	type = "button_style",
 	default_font_color = {a = 0},
@@ -115,7 +115,7 @@ data.raw["gui-style"]["default"][ModPrefix.."nav"] =
 	clicked_graphical_set = nav_button{x = 32}
 }
 
-data.raw["gui-style"]["default"][ModPrefix.."radio"] =
+data.raw["gui-style"]["default"][MOD_PREFIX.."radio"] =
 {
 	type = "button_style",
 	default_font_color = {a = 0},
@@ -133,7 +133,7 @@ data.raw["gui-style"]["default"][ModPrefix.."radio"] =
 	clicked_graphical_set = radio_button{x = 20}
 }
 
-data.raw["gui-style"]["default"][ModPrefix.."icon"] =
+data.raw["gui-style"]["default"][MOD_PREFIX.."icon"] =
 {
 	type = "button_style",
 	default_font_color = {a = 0},
@@ -151,7 +151,7 @@ data.raw["gui-style"]["default"][ModPrefix.."icon"] =
 	clicked_graphical_set = sprite_button{x = 72, y = 48}
 }
 
-data.raw["gui-style"]["default"][ModPrefix.."gray"] =
+data.raw["gui-style"]["default"][MOD_PREFIX.."gray"] =
 {
 	type = "button_style",
 	default_font_color = {a = 0},
@@ -169,19 +169,19 @@ data.raw["gui-style"]["default"][ModPrefix.."gray"] =
 	clicked_graphical_set = sprite_button{x = 72, y = 48}
 }
 
-data.raw["gui-style"]["default"][ModPrefix.."orange"] =
+data.raw["gui-style"]["default"][MOD_PREFIX.."orange"] =
 {
 	type = "button_style",
-	parent = ModPrefix.."gray",
+	parent = MOD_PREFIX.."gray",
 	default_graphical_set = sprite_button{x = 108, y = 48},
 	hovered_graphical_set = sprite_button{x = 108, y = 84},
 	clicked_graphical_set = sprite_button{x = 108, y = 84}
 }
 
-data.raw["gui-style"]["default"][ModPrefix.."blue"] =
+data.raw["gui-style"]["default"][MOD_PREFIX.."blue"] =
 {
 	type = "button_style",
-	parent = ModPrefix.."gray",
+	parent = MOD_PREFIX.."gray",
 	default_graphical_set = sprite_button{x = 0, y = 84},
 	hovered_graphical_set = sprite_button{x = 36, y = 84},
 	clicked_graphical_set = sprite_button{x = 72, y = 84}

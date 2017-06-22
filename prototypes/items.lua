@@ -1,9 +1,23 @@
+local function request_flag(opts)
+	return
+	{
+		type = "item",
+		name = MOD_PREFIX.."request-"..opts.name,
+		icon = "__base__/graphics/icons/signal/signal_"..opts.color..".png",
+		flags = {"goes-to-main-inventory", "hidden"},
+		subgroup = "other",
+		stack_size = 1,
+		localised_name = {"item-name."..MOD_PREFIX.."logistic-turret-request-flag", opts.localised_name},
+		localised_description = {"item-name."..MOD_PREFIX.."logistic-turret-request-flag", opts.localised_description}
+	}
+end
+
 data:extend(
 {
 	{
 		type = "selection-tool",
-		name = ModPrefix.."logistic-turret-remote",
-		icon = ModGFX.."remote.png",
+		name = MOD_PREFIX.."logistic-turret-remote",
+		icon = MOD_GFX.."remote.png",
 		flags = {"goes-to-main-inventory"},
 		subgroup = "tool",
 		order = "m[logistic-turret-remote]",
@@ -18,20 +32,49 @@ data:extend(
 	},
 	{
 		type = "recipe",
-		name = ModPrefix.."logistic-turret-remote",
-		enabled = data.raw.recipe["logistic-chest-requester"].enabled,
-		ingredients = {{"electronic-circuit", 1}},
-		result = ModPrefix.."logistic-turret-remote"
-	}
+		name = MOD_PREFIX.."logistic-turret-remote",
+		result = MOD_PREFIX.."logistic-turret-remote",
+		enabled = (data.raw.recipe["logistic-chest-requester"] ~= nil and data.raw.recipe["logistic-chest-requester"].enabled),
+		ingredients = {{"electronic-circuit", 1}}
+	},
+	{
+		type = "item",
+		name = MOD_PREFIX.."logistic-turret-chest",
+		place_result = MOD_PREFIX.."logistic-turret-chest",
+		icon = MOD_GFX.."chest.png",
+		flags = {"goes-to-main-inventory", "hidden"},
+		subgroup = "other",
+		stack_size = 1
+	},
+	request_flag{name = "limit-full", color = "blue", localised_name = "Insert limit", localised_description = "The amount of ammo this turret will attempt to keep in its inventory."},
+	request_flag{name = "limit-half", color = "pink", localised_name = "Insert limit", localised_description = "This turret is requesting a single item and will attempt to keep half of a magazine in its inventory."},
+	request_flag{name = "override", color = "grey", localised_name = "Manual override", localised_description = "This turret's request slot has been manually overridden."},
+	request_flag{name = "circuit-input", color = "cyan", localised_name = {"gui-control-behavior-modes.set-requests"}, localised_description = "This turret is changing its request slot based on the signals it is receiving."},
+	request_flag{name = "circuit-output", color = "cyan", localised_name = {"gui-control-behavior-modes.read-contents"}, localised_description = "This turret is transmitting the contents of its inventory to the circuit network."},
+	request_flag{name = "wire-red", color = "red", localised_name = {"item-name.red-wire"}, localised_description = "This turret is able to connect to red wires."},
+	request_flag{name = "wire-green", color = "green", localised_name = {"item-name.green-wire"}, localised_description = "This turret is able to connect to green wires."}
 })
 
 for _, tech in pairs(data.raw.technology) do
 	if tech.effects ~= nil then
 		for i, effect in pairs(tech.effects) do
 			if effect.recipe == "logistic-chest-requester" then
-				table.insert(tech.effects, {type = "unlock-recipe", recipe = ModPrefix.."logistic-turret-remote"})
+				table.insert(tech.effects, {type = "unlock-recipe", recipe = MOD_PREFIX.."logistic-turret-remote"})
 				break
 			end
 		end
+	end
+end
+
+if data.raw.technology["logistic-system"] ~= nil then
+	local found = false
+	for _, effect in pairs(data.raw.technology["logistic-system"].effects) do
+		if effect.recipe == MOD_PREFIX.."logistic-turret-remote" then
+			found = true
+			break
+		end
+	end
+	if not found then
+		table.insert(tech.effects, {type = "unlock-recipe", recipe = MOD_PREFIX.."logistic-turret-remote"})
 	end
 end

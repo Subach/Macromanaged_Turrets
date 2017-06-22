@@ -1,22 +1,8 @@
-ModGFX = "__Macromanaged_Turrets__/graphics/"
-ModPrefix = "MMT-"
+MOD_NAME = "Macromanaged_Turrets"
+MOD_PREFIX = "MMT-"
+MOD_GFX = "__"..MOD_NAME.."__/graphics/"
 
-require("prototypes.entities")
-require("prototypes.items")
-require("prototypes.style")
-
-data:extend(
-{
-	{
-		type = "custom-input",
-		name = ModPrefix.."close-gui",
-		key_sequence = "E",
-		consuming = "none"
-	},
-	{
-		type = "custom-input",
-		name = ModPrefix.."select-remote",
-		key_sequence = "SHIFT + R",
-		consuming = "all"
-	}
-})
+require("prototypes/entities")
+require("prototypes/items")
+require("prototypes/style")
+require("prototypes/input")
