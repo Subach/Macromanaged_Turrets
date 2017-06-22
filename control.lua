@@ -2109,7 +2109,7 @@ local function update_requests(updatedTurrets) --Update the request slots of tur
 		if logicTurret ~= nil and updatedTurrets[logicTurret.turret.name] ~= nil then --Turret's entry has changed
 			local config = globalCall("LogicTurretConfig")[logicTurret.turret.name]
 			if config == nil then --Turret's entry was removed
-				local magazine = turret.get_inventory(defines.inventory.turret_ammo)
+				local magazine = logicTurret.turret.get_inventory(defines.inventory.turret_ammo)
 				for i = 1, #magazine do
 					move_ammo(logicTurret.stash, magazine[i])
 					move_ammo(logicTurret.trash, magazine[i])
@@ -2139,7 +2139,7 @@ local function update_requests(updatedTurrets) --Update the request slots of tur
 			if logicTurret == nil then
 				table.remove(turretArray, i)
 			elseif updatedTurrets[logicTurret.turret.name] ~= nil and globalCall("LogicTurretConfig")[logicTurret.turret.name] == nil then --Turret's entry was removed
-				local magazine = turret.get_inventory(defines.inventory.turret_ammo)
+				local magazine = logicTurret.turret.get_inventory(defines.inventory.turret_ammo)
 				for i = 1, #magazine do
 					move_ammo(logicTurret.stash, magazine[i])
 					move_ammo(logicTurret.trash, magazine[i])
