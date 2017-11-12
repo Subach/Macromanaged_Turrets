@@ -7,6 +7,10 @@ local globalCall = _util.globalCall
 
 local _migration = {}
 
+_migration["1.1.6"] = function()
+--TODO: logicTurret.magazine vs. logicTurret.inventory.magazine
+end
+
 _migration["1.1.4"] = function()
 	globalCall("TurretArrays", "Active")
 	globalCall("TurretArrays", "Idle")
@@ -100,7 +104,7 @@ _migration["1.1.0"] = function()
 		end
 	end
 	for _, force in pairs(game.forces) do
-		force.recipes[_MOD.DEFINES.logic_turret.remote].reload()
+		force.recipes[_MOD.DEFINES.remote_control].reload()
 	end
 	global.IconSets = nil
 	global.IdleLogicTurrets = nil

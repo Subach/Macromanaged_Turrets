@@ -1,14 +1,15 @@
-local function request_flag(opts)
+local function memory_flag(opts)
 	return
 	{
 		type = "item",
-		name = MOD_PREFIX.."request-"..opts.name,
+		name = MOD_PREFIX.."memory-"..opts.name,
 		icon = "__base__/graphics/icons/signal/signal_"..opts.color..".png",
+		icon_size = 32,
 		flags = {"goes-to-main-inventory", "hidden"},
 		subgroup = "other",
 		stack_size = 1,
-		localised_name = {"item-name."..MOD_PREFIX.."logistic-turret-request-flag", opts.localised_name},
-		localised_description = {"item-name."..MOD_PREFIX.."logistic-turret-request-flag", opts.localised_description}
+		localised_name = {"item-name."..MOD_PREFIX.."logistic-turret-memory-flag", opts.localised_name},
+		localised_description = {"item-name."..MOD_PREFIX.."logistic-turret-memory-flag", opts.localised_description}
 	}
 end
 
@@ -18,6 +19,7 @@ data:extend(
 		type = "selection-tool",
 		name = MOD_PREFIX.."logistic-turret-remote",
 		icon = MOD_GFX.."remote.png",
+		icon_size = 32,
 		flags = {"goes-to-main-inventory"},
 		subgroup = "tool",
 		order = "m[logistic-turret-remote]",
@@ -40,19 +42,30 @@ data:extend(
 	{
 		type = "item",
 		name = MOD_PREFIX.."logistic-turret-chest",
-		place_result = MOD_PREFIX.."logistic-turret-chest",
 		icon = MOD_GFX.."chest.png",
+		icon_size = 32,
 		flags = {"goes-to-main-inventory", "hidden"},
+		place_result = MOD_PREFIX.."logistic-turret-chest",
 		subgroup = "other",
 		stack_size = 1
 	},
-	request_flag{name = "limit-full", color = "blue", localised_name = "Insert limit", localised_description = "The amount of ammo this turret will attempt to keep in its inventory."},
-	request_flag{name = "limit-half", color = "pink", localised_name = "Insert limit", localised_description = "This turret is requesting a single item and will attempt to keep half of a magazine in its inventory."},
-	request_flag{name = "override", color = "grey", localised_name = "Manual override", localised_description = "This turret's request slot has been manually overridden."},
-	request_flag{name = "circuit-input", color = "cyan", localised_name = {"gui-control-behavior-modes.set-requests"}, localised_description = "This turret is changing its request slot based on the signals it is receiving."},
-	request_flag{name = "circuit-output", color = "cyan", localised_name = {"gui-control-behavior-modes.read-contents"}, localised_description = "This turret is transmitting the contents of its inventory to the circuit network."},
-	request_flag{name = "wire-red", color = "red", localised_name = {"item-name.red-wire"}, localised_description = "This turret is able to connect to red wires."},
-	request_flag{name = "wire-green", color = "green", localised_name = {"item-name.green-wire"}, localised_description = "This turret is able to connect to green wires."}
+	{
+		type = "item",
+		name = MOD_PREFIX.."logistic-turret-memory",
+		icon = MOD_GFX.."chest.png",
+		icon_size = 32,
+		flags = {"goes-to-main-inventory", "hidden"},
+		place_result = MOD_PREFIX.."logistic-turret-memory",
+		subgroup = "other",
+		stack_size = 1
+	},
+	memory_flag{name = "limit-full", color = "blue", localised_name = "Insert limit", localised_description = "The amount of ammo this turret will attempt to keep in its inventory."},
+	memory_flag{name = "limit-half", color = "pink", localised_name = "Insert limit", localised_description = "This turret is requesting a single item and will attempt to keep half of a magazine in its inventory."},
+	memory_flag{name = "override", color = "grey", localised_name = "Manual override", localised_description = "This turret's request slot has been manually overridden."},
+	memory_flag{name = "circuit-input", color = "cyan", localised_name = {"gui-control-behavior-modes.set-requests"}, localised_description = "This turret is changing its request slot based on the signals it is receiving."},
+	memory_flag{name = "circuit-output", color = "cyan", localised_name = {"gui-control-behavior-modes.read-contents"}, localised_description = "This turret is transmitting the contents of its inventory to the circuit network."},
+	memory_flag{name = "wire-red", color = "red", localised_name = {"item-name.red-wire"}, localised_description = "This turret is able to connect to red wires."},
+	memory_flag{name = "wire-green", color = "green", localised_name = {"item-name.green-wire"}, localised_description = "This turret is able to connect to green wires."}
 })
 
 for _, tech in pairs(data.raw.technology) do

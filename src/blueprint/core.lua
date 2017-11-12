@@ -30,9 +30,8 @@ local function get_ghost_turret(entity) --Check if a ghost turret exists in the 
 	for i = 1, #ghosts do
 		local ghost = ghosts[i]
 		if ghost.valid then
-			local ghost_name = ghost.ghost_name
-			if globalCall("LogicTurretConfig")[ghost_name] ~= nil then
-				return ghost_name
+			if globalCall("LogicTurretConfig")[ghost.ghost_name] ~= nil then
+				return ghost
 			end
 		end
 	end
@@ -48,12 +47,12 @@ local function get_valid_ghost(locus, name) --Get a ghost with a specific name
 	end
 end
 
-local function queue_wire_update(turret_list) --Add a list of turrets to the wire update queue --TODO: Finish wire update queue in v0.15
+local function queue_wire_update(turret_list) --Add a list of turrets to the wire update queue
 	local tick = game.tick
 	local blue_wire = globalCall("GhostData", "BlueWire")
 	local bTick = blue_wire.Tick
-	if (bTick - tick) < 60 then
-		bTick = tick + 60
+	if (bTick - tick) < 150 then
+		bTick = tick + 150
 	end
 	for id in pairs(turret_list) do
 		if blue_wire.Log[id] == nil then
@@ -85,8 +84,7 @@ local function remove_old_ghosts(tick) --Remove ghost wires of expired ghost tur
 	local old_ghosts = global.GhostData.OldConnections
 	local ghosts = old_ghosts[tick]
 	if ghosts ~= nil then
-		for i = 1, #ghosts do
-			local ghost = ghosts[i]
+		for _, ghost in pairs(ghosts) do
 			if ghost.valid then
 				ghost.destroy()
 			end
@@ -94,6 +92,18 @@ local function remove_old_ghosts(tick) --Remove ghost wires of expired ghost tur
 		old_ghosts[tick] = nil
 	end
 	return (next(old_ghosts) ~= nil)
+end
+
+local function revive_component(locus, name) --Revive a specific component
+	local ghost = get_valid_ghost(locus, name)
+	if ghost ~= nil then
+		local entity = select(2, ghost.revive(false))
+		if entity ~= nil and entity.valid then
+			return entity
+		elseif ghost.valid then
+			ghost.destroy() --Destroy ghost if it failed to revive
+		end
+	end
 end
 
 local function revive_ghosts(turret) --Revive components and reconnect wires when a ghost turret is rebuilt
@@ -106,34 +116,34 @@ local function revive_ghosts(turret) --Revive components and reconnect wires whe
 	local force = turret.force.name
 	local ghost_data = get_ghost_data(index, pos.x, pos.y, force) or {}
 	if ghost_data.turret == turret.name and ghost_data.expiration > game.tick then
-		local chest = get_valid_ghost(turret, _MOD.DEFINES.logic_turret.chest)
+		local chest = revive_component(turret, _MOD.DEFINES.logic_turret.chest)
+		local memory = revive_component(turret, _MOD.DEFINES.logic_turret.memory)
 		if chest ~= nil then
-			chest = select(2, chest.revive())
-			if chest ~= nil and chest.valid then
-				local connections = chest.circuit_connection_definitions
-				if #connections > 0 then --Re-wire the interface's connections
-					local interface = surface.create_entity{name = _MOD.DEFINES.logic_turret.interface, position = pos, force = force}
-					if interface ~= nil and interface.valid then
-						for i = 1, #connections do
-							local connection = connections[i]
-							local target = connection.target_entity
-							if target.valid then
-								if target.name == _MOD.DEFINES.logic_turret.chest then
-									target = surface.find_entities_filtered{name = _MOD.DEFINES.logic_turret.interface, area = position_to_area(target.position), force = force, limit = 1}[1]
-									if target ~= nil and target.valid then
-										interface.connect_neighbour({wire = connection.wire, target_entity = target, target_circuit_id = connection.target_circuit_id})
-									end
-								else
+			ghost_data.chest = chest
+		end
+		if memory ~= nil then
+			local connections = memory.circuit_connection_definitions
+			if #connections > 0 then --Re-wire the interface's connections
+				local interface = surface.create_entity{name = _MOD.DEFINES.logic_turret.interface, position = pos, force = force}
+				if interface ~= nil and interface.valid then
+					for i = 1, #connections do
+						local connection = connections[i]
+						local target = connection.target_entity
+						if target.valid then
+							if target.name == _MOD.DEFINES.logic_turret.memory then
+								target = surface.find_entities_filtered{name = _MOD.DEFINES.logic_turret.interface, area = position_to_area(target.position), force = force, limit = 1}[1]
+								if target ~= nil and target.valid then
 									interface.connect_neighbour({wire = connection.wire, target_entity = target, target_circuit_id = connection.target_circuit_id})
 								end
+							else
+								interface.connect_neighbour({wire = connection.wire, target_entity = target, target_circuit_id = connection.target_circuit_id})
 							end
 						end
-						ghost_data.interface = interface
 					end
+					ghost_data.interface = interface
 				end
-				chest.health = 1
-				ghost_data.chest = chest
 			end
+			ghost_data.memory = memory
 		end
 	end
 	remove_ghost_data(index, pos.x, pos.y, force)
@@ -141,30 +151,41 @@ local function revive_ghosts(turret) --Revive components and reconnect wires whe
 end
 
 local function set_ghost_data(entity, data) --Save an entity's ghost data
-	if entity == nil or not entity.valid then
-		return
-	end
 	local pos = entity.position
 	globalCall("GhostData", "Connections", entity.surface.index, pos.x, pos.y)[entity.force.name] = data
 end
 
 local function circuit_has_changed(cache, connections) --Compare wire connections to a cached value
-	if cache == nil then return true end
+	if cache == nil then
+		return true
+	end
 	for wire, entities in pairs(cache) do
-		if connections[wire] == nil then return true end
+		if connections[wire] == nil then
+			return true
+		end
 		for id, connection in pairs(entities) do
-			if connections[wire][id] == nil then return true end
+			if connections[wire][id] == nil then
+				return true
+			end
 			for k, v in pairs(connection) do
-				if connections[wire][id][k] ~= v then return true end
+				if connections[wire][id][k] ~= v then
+					return true
+				end
 			end
 		end
 	end
 	for wire, entities in pairs(connections) do
-		if cache[wire] == nil then return true end
+		if cache[wire] == nil then
+			return true
+		end
 		for id, connection in pairs(entities) do
-			if cache[wire][id] == nil then return true end
+			if cache[wire][id] == nil then
+				return true
+			end
 			for k, v in pairs(connection) do
-				if cache[wire][id][k] ~= v then return true end
+				if cache[wire][id][k] ~= v then
+					return true
+				end
 			end
 		end
 	end
@@ -188,29 +209,29 @@ local function get_wire_connections(entity) --Sort a turret's wire connections, 
 	return connections
 end
 
-local function update_ghost_wires(logicTurret) --Copy the interface's wire connections to the chest so they can be saved in blueprints
+local function update_ghost_wires(logicTurret) --Copy the interface's wire connections to memory so they can be saved in blueprints
 	if logicTurret == nil or logicTurret.destroy then
 		return
 	end
-	local chest = logicTurret.components.chest
 	local interface = logicTurret.components.interface
-	if chest ~= nil and interface ~= nil and chest.valid and interface.valid then
+	local memory = logicTurret.components.memory
+	if interface ~= nil and memory ~= nil and interface.valid and memory.valid then
 		local connections = get_wire_connections(interface)
 		if circuit_has_changed(logicTurret.wire_cache, connections) then
-			local force = chest.force
-			chest.disconnect_neighbour(defines.wire_type.red)
-			chest.disconnect_neighbour(defines.wire_type.green)
+			local force = memory.force
+			memory.disconnect_neighbour(defines.wire_type.red)
+			memory.disconnect_neighbour(defines.wire_type.green)
 			for wire, entities in pairs(connections) do
 				for id, connection in pairs(entities) do
 					local target = connection.target_entity
 					if target.valid then
 						if target.name == _MOD.DEFINES.logic_turret.interface then
-							target = chest.surface.find_entities_filtered{name = _MOD.DEFINES.logic_turret.chest, area = position_to_area(target.position), force = force, limit = 1}[1]
+							target = memory.surface.find_entities_filtered{name = _MOD.DEFINES.logic_turret.memory, area = position_to_area(target.position), force = force, limit = 1}[1]
 							if target ~= nil and target.valid then
-								chest.connect_neighbour({wire = wire, target_entity = target, target_circuit_id = connection.target_circuit_id})
+								memory.connect_neighbour({wire = wire, target_entity = target, target_circuit_id = connection.target_circuit_id})
 							end
 						else
-							chest.connect_neighbour({wire = wire, target_entity = target, target_circuit_id = connection.target_circuit_id})
+							memory.connect_neighbour({wire = wire, target_entity = target, target_circuit_id = connection.target_circuit_id})
 						end
 					end
 				end

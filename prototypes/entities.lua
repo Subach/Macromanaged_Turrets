@@ -1,5 +1,3 @@
-local config = require("config")
-
 local function get_led(opts)
 	return
 	{
@@ -14,7 +12,7 @@ local function get_led(opts)
 end
 
 local function get_circuit_connector_sprites(opts)
-	if (config == nil or config.ShowCircuitConnector ~= false) then
+	if settings.startup[MOD_PREFIX.."show-circuit-connector"].value then
 		return
 		{
 			connector_main =
@@ -68,19 +66,26 @@ local connection_point =
 	}
 }
 
+local default_wire_distance = 9
+local minimum_wire_distance = 0.03125
+
 data:extend(
 {
 	{
 		type = "logistic-container",
 		name = MOD_PREFIX.."logistic-turret-bin",
+		icon = MOD_GFX.."chest.png",
+		icon_size = 32,
 		flags = {"not-blueprintable", "not-deconstructable", "not-on-map", "not-repairable", "placeable-off-grid"},
-		localised_name = {"entity-name.logistic-chest-active-provider"},
-		max_health = 0,
+		max_health = 1,
 		collision_mask = {"not-colliding-with-itself"},
 		collision_box = {{0, 0}, {0, 0}},
-		selection_box = {{0.125, 0.275}, {0.125, 0.275}},
+		selection_box = {{-0.2, -0.05}, {0.45, 0.6}},
 		alert_when_damaged = false,
 		selectable_in_game = false,
+		allow_copy_paste = false,
+		scale_info_icons = false,
+		render_not_in_network_icon = false,
 		inventory_size = 1,
 		logistic_mode = "active-provider",
 		picture = blank_sprite
@@ -88,62 +93,92 @@ data:extend(
 	{
 		type = "logistic-container",
 		name = MOD_PREFIX.."logistic-turret-chest",
+		icon = MOD_GFX.."chest.png",
+		icon_size = 32,
 		flags = {"not-deconstructable", "not-on-map", "not-repairable", "placeable-off-grid", "player-creation"},
-		max_health = 0,
+		max_health = 1,
 		collision_mask = {"layer-11"},
-		collision_box = {{-0.7, -0.7}, {0.7, 0.7}},
-		selection_box = {{0.125, 0.275}, {0.125, 0.275}},
+		collision_box = {{0, 0}, {0, 0}},
+		selection_box = {{-0.2, -0.05}, {0.45, 0.6}},
 		alert_when_damaged = false,
 		selectable_in_game = false,
+		allow_copy_paste = false,
+		scale_info_icons = false,
+		render_not_in_network_icon = false,
 		inventory_size = 1,
 		logistic_mode = "requester",
-		num_logistic_slots = 6,
+		num_logistic_slots = 1,
 		picture = blank_sprite,
 		circuit_wire_connection_point = connection_point,
-		circuit_wire_max_distance = 7.5,
-		circuit_connector_sprites = get_circuit_connector_sprites{}
+		circuit_wire_max_distance = minimum_wire_distance
 	},
 	{
 		type = "constant-combinator",
 		name = MOD_PREFIX.."logistic-turret-combinator",
+		icon = MOD_GFX.."chest.png",
+		icon_size = 32,
 		flags = {"not-blueprintable", "not-deconstructable", "not-on-map", "not-repairable", "placeable-off-grid"},
-		localised_name = {"entity-name.constant-combinator"},
-		max_health = 0,
+		max_health = 1,
 		collision_mask = {"not-colliding-with-itself"},
 		collision_box = {{0, 0}, {0, 0}},
-		selection_box = {{0.125, 0.275}, {0.125, 0.275}},
+		selection_box = {{-0.2, -0.05}, {0.45, 0.6}},
 		alert_when_damaged = false,
 		selectable_in_game = false,
+		allow_copy_paste = false,
 		item_slot_count = 10,
 		sprites = {north = blank_sprite, east = blank_sprite, south = blank_sprite, west = blank_sprite},
 		activity_led_sprites = {north = blank_sprite, east = blank_sprite, south = blank_sprite, west = blank_sprite},
 		activity_led_light_offsets = {{0, 0}, {0, 0}, {0, 0}, {0, 0}},
 		circuit_wire_connection_points = {connection_point, connection_point, connection_point, connection_point},
-		circuit_wire_max_distance = 0.03125
+		circuit_wire_max_distance = minimum_wire_distance
 	},
 	{
 		type = "lamp",
 		name = MOD_PREFIX.."logistic-turret-interface",
+		icon = MOD_GFX.."chest.png",
+		icon_size = 32,
 		flags = {"not-blueprintable", "not-deconstructable", "not-on-map", "not-repairable", "placeable-off-grid"},
 		minable = {mining_time = 0.5},
-		max_health = 0,
+		max_health = 1,
 		collision_mask = {"water-tile", "item-layer", "object-layer", "player-layer"},
 		collision_box = {{0, 0}, {0, 0}},
 		selection_box = {{-0.2, -0.05}, {0.45, 0.6}},
 		alert_when_damaged = false,
-		energy_source = {type = "burner", effectivity = 1, fuel_inventory_size = 0, render_no_network_icon = false, render_no_power_icon = false},
+		allow_copy_paste = false,
+		energy_source =
+		{
+			usage_priority = "secondary-input",
+			render_no_network_icon = false,
+			render_no_power_icon = false
+		},
 		energy_usage_per_tick = "0kW",
 		picture_on = blank_sprite,
 		picture_off = blank_sprite,
 		circuit_wire_connection_point = connection_point,
-		circuit_wire_max_distance = 7.5,
+		circuit_wire_max_distance = default_wire_distance,
 		circuit_connector_sprites = get_circuit_connector_sprites{x = 14}
 	},
 	{
-		type = "flying-text",
-		name = MOD_PREFIX.."flying-text",
-		flags = {"not-on-map", "placeable-off-grid"},
-		time_to_live = 150,
-		speed = 0.05
+		type = "logistic-container",
+		name = MOD_PREFIX.."logistic-turret-memory",
+		icon = MOD_GFX.."chest.png",
+		icon_size = 32,
+		flags = {"not-deconstructable", "not-on-map", "not-repairable", "placeable-off-grid", "player-creation"},
+		max_health = 1,
+		collision_mask = {"layer-13"},
+		collision_box = {{0, 0}, {0, 0}},
+		selection_box = {{-0.2, -0.05}, {0.45, 0.6}},
+		alert_when_damaged = false,
+		selectable_in_game = false,
+		allow_copy_paste = false,
+		scale_info_icons = false,
+		render_not_in_network_icon = false,
+		inventory_size = 1,
+		logistic_mode = "requester",
+		num_logistic_slots = 5,
+		picture = blank_sprite,
+		circuit_wire_connection_point = connection_point,
+		circuit_wire_max_distance = default_wire_distance,
+		circuit_connector_sprites = get_circuit_connector_sprites{x = 14}
 	}
 })

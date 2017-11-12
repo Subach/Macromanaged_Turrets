@@ -62,15 +62,12 @@ local function clear_ammo(logicTurret) --Empty a turret's internal components of
 	if turret.valid then
 		local magazine = turret.get_inventory(defines.inventory.turret_ammo)
 		if magazine ~= nil and magazine.valid then
-			local stash = logicTurret.inventory.stash
-			local trash = logicTurret.inventory.trash
-			for i = 1, #magazine do
-				local slot = magazine[i]
-				_logistics.move_ammo(stash, slot)
-				_logistics.move_ammo(trash, slot)
+			for _, item in pairs(logicTurret.inventory) do
+				for i = 1, #magazine do
+					_logistics.move_ammo(item, magazine[i])
+				end
+				_util.spill_stack(turret, item)
 			end
-			_util.spill_stack(turret, stash)
-			_util.spill_stack(turret, trash)
 		end
 	end
 end
@@ -111,7 +108,7 @@ local function is_remote_enabled(force) --Check if the logistic turret remote is
 		force = game.forces[force]
 	end
 	if force ~= nil and force.valid then
-		return force.recipes[_MOD.DEFINES.logic_turret.remote].enabled
+		return force.recipes[_MOD.DEFINES.remote_control].enabled
 	end
 end
 
@@ -123,21 +120,18 @@ local function add_components(turret) --Create a logistic turret
 	local pos = turret.position
 	local force = turret.force
 	local ghost_data = _blueprint.revive_ghosts(turret) --Get any saved data if this turret was rebuilt from a ghost
-	local components =
-	{
-		bin = surface.create_entity{name = _MOD.DEFINES.logic_turret.bin, position = pos, force = force}, --Recycle bin for unwanted ammo
-		chest = ghost_data.chest or surface.create_entity{name = _MOD.DEFINES.logic_turret.chest, position = pos, force = force}, --Internal inventory that requests ammo for the turret
-		combinator = surface.create_entity{name = _MOD.DEFINES.logic_turret.combinator, position = pos, force = force}, --Outputs turret inventory/filters incoming signals
-		interface = ghost_data.interface or surface.create_entity{name = _MOD.DEFINES.logic_turret.interface, position = pos, force = force} --Circuit network interface
-	}
-	for _, component in pairs(components) do
+	local components = {}
+	for key, name in pairs(_MOD.DEFINES.logic_turret) do
+		components[key] = ghost_data[key] or surface.create_entity{name = name, position = pos, force = force} --Create component
+	end
+	for key, component in pairs(components) do
 		if component == nil or not component.valid then
 			for k, entity in pairs(components) do
 				if entity ~= nil and entity.valid then
 					entity.destroy()
 				end
 			end
-			return
+			return --Early out if a component failed to create
 		end
 		component.active = false
 		component.destructible = false
@@ -145,15 +139,18 @@ local function add_components(turret) --Create a logistic turret
 	end
 	components.combinator.get_or_create_control_behavior().enabled = false --Turn combinator off
 	components.interface.minable = (turret.minable and turret.prototype.mineable_properties.minable) --Only minable if the turret is
-	components.interface.last_user = turret.last_user
+	local owner = turret.last_user
+	if owner ~= nil then
+		components.interface.last_user = owner
+	end
 	local logicTurret =
 	{
 		entity = turret,
 		id = turret.unit_number,
 		components = components,
+		magazine = turret.get_inventory(defines.inventory.turret_ammo)[1],
 		inventory =
 		{
-			magazine = turret.get_inventory(defines.inventory.turret_ammo)[1],
 			stash = components.chest.get_inventory(defines.inventory.chest)[1],
 			trash = components.bin.get_inventory(defines.inventory.chest)[1]
 		},

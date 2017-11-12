@@ -1,4 +1,4 @@
-Macromanaged Turrets v1.1.5
+Macromanaged Turrets v1.1.6
 Remote Inteface API
 
 

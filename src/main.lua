@@ -11,7 +11,7 @@ local function load_config() --Run the loader in protected mode
 	protect(_loader.load_config)
 end
 
-local function on_load() --Register the loader to run on the first tick
+local function on_load() --Register the loader to run on the first tick after loading a world --TODO: desync
 	script.on_event(defines.events.on_tick, load_config)
 end
 
@@ -28,7 +28,7 @@ local function on_init() --Initialize globals
 	globalCall("AmmoData", "Categories")
 	globalCall("Clipboard")
 	globalCall("TurretGUI")
---globalCall("CircuitNetworks") --TODO: Optimize input mode in v0.15
+	globalCall("CircuitNetworks")
 	globalCall("GhostData", "Connections")
 	globalCall("GhostData", "OldConnections")
 	globalCall("GhostData", "BlueWire", "Log")
@@ -51,6 +51,7 @@ local function on_configuration_changed(data) --Update mod
 		if old_version ~= nil then
 			if _util.is_older_than("1.1.0", old_version) then _migration.patch_to("1.1.0") end
 			if _util.is_older_than("1.1.4", old_version) then _migration.patch_to("1.1.4") end
+			if _util.is_older_than("1.1.6", old_version) then _migration.patch_to("1.1.6") end
 		end
 	end
 	_loader.sort_ammo_types() --Re-create the ammo lists

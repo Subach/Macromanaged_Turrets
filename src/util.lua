@@ -64,7 +64,7 @@ local function raise_event(id, data) --Copied from the Creative Mode mod by Moon
 	data = data or {}
 	data.name = id
 	data.tick = game.tick
-	game.raise_event(id, data)
+	script.raise_event(id, data)
 end
 
 local function save_to_global(t, ...) --Overwrite a global table without breaking references

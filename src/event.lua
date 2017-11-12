@@ -34,52 +34,33 @@ local function on_built_entity(event) --Add turret to the logistic turret list
 	_blueprint:handler(event.name, entity)
 end
 
-local function on_pre_mined_entity(event) --Remove turret from the logistic turret list, handle any leftover ammo, and destroy its internal components
+local function on_mined_entity(event) --Remove turret from the logistic turret list, handle any leftover ammo, and destroy its internal components
 	local entity = event.entity
 	if entity == nil or not entity.valid then
 		return
 	end
 	local logicTurret = _core.lookup_turret(entity)
 	if logicTurret ~= nil then
-		local id = event.player_index
-		local player = _util.get_player(id)
-		local turret = logicTurret.entity
-		_gui.interrupt(turret) --Close this turret's GUI for all players
-		if player ~= nil then
-			if entity.name == _MOD.DEFINES.logic_turret.interface then --Player mined the circuit network interface
-				_util.raise_event(defines.events.on_preplayer_mined_item, {entity = turret, player_index = id}) --Raise an event as though the turret was mined
-				if turret.valid then --Check if the turret is still valid after raising the event
-					_logistics.transfer_inventory(turret, player) --Transfer the turret's inventory to the player
-					if not turret.has_items_inside() then
-						local health = turret.health / turret.prototype.max_health
-						if health == 1 then
-							health = nil
-						end
-						local products = turret.prototype.mineable_properties.products
-						for i = 1, #products do
-							local product = products[i]
-							if product.type == "item" then
-								local count = product.amount or (math.random(product.amount_min, product.amount_max) * ((product.probability >= math.random()) and 1 or 0))
-								if count ~= nil and count > 0 then
-									local name = product.name
-									local inserted = player.insert({name = name, count = count, health = health}) --Add the turret to the player's inventory
-									if inserted < count then
-										turret.surface.spill_item_stack(turret.position, {name = name, count = count - inserted, health = health}) --Drop turret on the ground if it didn't fit in the player's inventory
-									end
-									_util.raise_event(defines.events.on_player_mined_item, {item_stack = {name = name, count = count}, player_index = id}) --Raise an event as though the turret was mined
-								end
-							end
-						end
-						turret.destroy() --Remove turret
-					end
-				end
-				return
+		if entity.name == _MOD.DEFINES.logic_turret.interface then --Player mined the circuit network interface
+			local player = _util.get_player(event.player_index)
+			if player ~= nil and player.mine_entity(logicTurret.entity, false) then --Mine the turret too
+				_core.destroy_components(logicTurret) --Remove from the logistic turret lists
 			end
-			_logistics.transfer_inventory(turret, player, logicTurret.inventory.stash, logicTurret.inventory.trash) --Transfer the turret's inventory to the player
-		else
-			_core.clear_ammo(logicTurret)
+			return
 		end
-		_core.destroy_components(logicTurret) --Remove from the logistic turret lists
+		_gui.interrupt(logicTurret.entity) --Close this turret's GUI for all players
+		local buffer = event.buffer
+		if buffer ~= nil and buffer.valid then
+			for _, item in pairs(logicTurret.inventory) do
+				if item.valid_for_read then
+					buffer.insert(item)
+					item.clear()
+				end
+			end
+		end
+		if event.robot ~= nil then
+			_core.destroy_components(logicTurret) --Remove from the logistic turret lists
+		end
 	end
 	_blueprint:handler(event.name, entity)
 end
@@ -96,7 +77,7 @@ local function on_research_finished(event) --Awaken dormant turrets when the log
 	local effects = tech.effects
 	if effects ~= nil then
 		for i = 1, #effects do
-			if effects[i].recipe == _MOD.DEFINES.logic_turret.remote then --Logistic system is researched
+			if effects[i].recipe == _MOD.DEFINES.remote_control then --Logistic system is researched
 				_core.awaken_dormant_turrets(force)
 				break
 			end
@@ -115,7 +96,6 @@ local function on_marked_for_deconstruction(event) --Clear the chest's request s
 		_logistics.set_request(logicTurret, _MOD.DEFINES.blank_request)
 		_logistics.request_override(logicTurret, true) --Set override flag
 	end
-	_blueprint:handler(event.name, entity)
 end
 
 local function on_canceled_deconstruction(event) --Reset the chest's request slot when deconstruction is canceled
@@ -162,51 +142,6 @@ local function on_forces_merging(event) --Migrate or awaken dormant turrets
 	end
 end
 
-local function on_pre_entity_settings_pasted(event) --Prevent a player from copying the interface's settings with shift + right-click
-	local source = event.source
-	local destination = event.destination
-	if source == nil or destination == nil or not (source.valid and destination.valid) then
-		return
-	end
-	if source.name == _MOD.DEFINES.logic_turret.interface then
-		local settings = destination.get_control_behavior()
-		if settings ~= nil then
-			globalCall("Clipboard", _MOD.DEFINES.logic_turret.interface)[destination.unit_number] = --Save the destination's settings
-			{
-				destination.circuit_connection_definitions,
-				settings.circuit_condition,
-				settings.connect_to_logistic_network,
-				settings.logistic_condition,
-				settings.use_colors
-			}
-		end
-	end
-end
-
-local function on_entity_settings_pasted(event) --Prevent a player from copying the interface's settings with shift + right-click
-	local source = event.source
-	local destination = event.destination
-	if source == nil or destination == nil or not (source.valid and destination.valid) then
-		return
-	end
-	if source.name == _MOD.DEFINES.logic_turret.interface then
-		local id = destination.unit_number
-		local clipboard = globalCall("Clipboard", _MOD.DEFINES.logic_turret.interface)[id]
-		if clipboard ~= nil then
-			local settings = destination.get_or_create_control_behavior() --Give the destination its settings back
-			local connections = clipboard[1]
-			for i = 1, #connections do
-				destination.connect_neighbour(connections[i])
-			end
-			settings.circuit_condition = clipboard[2]
-			settings.connect_to_logistic_network = clipboard[3]
-			settings.logistic_condition = clipboard[4]
-			settings.use_colors = clipboard[5]
-			global.Clipboard[_MOD.DEFINES.logic_turret.interface][id] = nil
-		end
-	end
-end
-
 local function on_pre_player_died(event) --Close the turret GUI when a player dies
 	_gui:handler(event.name, event.player_index)
 end
@@ -230,34 +165,36 @@ local function on_custom_input_select_remote(event) --Equip or stow the logistic
 		return
 	end
 	local cursor = player.cursor_stack
-	if cursor.valid_for_read and cursor.name == _MOD.DEFINES.logic_turret.remote then
+	if cursor.valid_for_read and cursor.name == _MOD.DEFINES.remote_control then
 		player.clean_cursor()
-	elseif player.get_item_count(_MOD.DEFINES.logic_turret.remote) > 0 then
-		player.clean_cursor()
-		player.remove_item({name = _MOD.DEFINES.logic_turret.remote, count = 1})
-		cursor.set_stack({name = _MOD.DEFINES.logic_turret.remote, count = 1})
+	elseif player.get_item_count(_MOD.DEFINES.remote_control) > 0 and player.clean_cursor() then
+		player.remove_item({name = _MOD.DEFINES.remote_control, count = 1})
+		cursor.set_stack({name = _MOD.DEFINES.remote_control, count = 1})
 	end
 end
 
-local function on_player_changed_surface(event) --Prevent a player from teleporting to the workshop
-	local player = _util.get_player(event.player_index)
-	if player == nil then
-		return
-	end
-	local workshop = game.surfaces[_MOD.DEFINES.workshop]
-	if workshop ~= nil and workshop.valid and player.surface == workshop then
-		local surface = game.surfaces[event.surface_index]
-		if surface == nil or not surface.valid then
-			surface = game.surfaces["nauvis"]
-		end
-		player.teleport(player.position, surface)
-	end
-end
---[[--TODO: Finish wire update queue in v0.15
 local function on_selected_entity_changed(event) --Add selected turret to the wire update queue
---This event does not exist in v0.14
+	_blueprint:handler(event.name, event.player_index)
 end
+
+local function on_runtime_mod_setting_changed(event) --Update mod settings
+	local setting = event.setting
+	if setting == _MOD.DEFINES.prefix.."tick-interval" --[[ or setting == _MOD.DEFINES.prefix.."time-factor" --]] then
+		local interval = settings.global[_MOD.DEFINES.prefix.."tick-interval"].value
+--[[ --TODO: desync
+		local time_factor = math.min(settings.global[_MOD.DEFINES.prefix.."time-factor"].value, math.floor(interval / 2))
+		_MOD.ACTIVE_INTERVAL = math.max(math.floor(interval / time_factor), 1)
+		_MOD.IDLE_INTERVAL = math.max(math.floor(interval / time_factor), 1) * 5
+		_MOD.ACTIVE_TIMER = math.max(math.floor(900 / interval), 1)
+		_MOD.UPDATE_INTERVAL = time_factor
+		_MOD.UPDATE_TICK = time_factor - 1
 --]]
+		_MOD.ACTIVE_INTERVAL = interval
+		_MOD.IDLE_INTERVAL = interval * 5
+		_MOD.ACTIVE_TIMER = math.max(math.floor(900 / interval), 1)
+	end
+end
+
 return
 {
 	dispatch =
@@ -265,21 +202,19 @@ return
 		[defines.events.on_gui_click] = on_gui_click,
 		[defines.events.on_entity_died] = on_entity_died,
 		[defines.events.on_built_entity] = on_built_entity,
-		[defines.events.on_preplayer_mined_item] = on_pre_mined_entity,
 		[defines.events.on_robot_built_entity] = on_built_entity,
-		[defines.events.on_robot_pre_mined] = on_pre_mined_entity,
 		[defines.events.on_research_finished] = on_research_finished,
 		[defines.events.on_marked_for_deconstruction] = on_marked_for_deconstruction,
 		[defines.events.on_canceled_deconstruction] = on_canceled_deconstruction,
 		[defines.events.on_forces_merging] = on_forces_merging,
-		[defines.events.on_pre_entity_settings_pasted] = on_pre_entity_settings_pasted,
-		[defines.events.on_entity_settings_pasted] = on_entity_settings_pasted,
 		[defines.events.on_pre_player_died] = on_pre_player_died,
 		[defines.events.on_player_left_game] = on_player_left_game,
 		[defines.events.on_player_selected_area] = on_player_selected_area,
 		[defines.events.on_player_alt_selected_area] = on_player_selected_area,
-		[defines.events.on_player_changed_surface] = on_player_changed_surface,
-	--[defines.events.on_selected_entity_changed] = on_selected_entity_changed --TODO: Finish wire update queue in v0.15
+		[defines.events.on_selected_entity_changed] = on_selected_entity_changed,
+		[defines.events.on_runtime_mod_setting_changed] = on_runtime_mod_setting_changed,
+		[defines.events.on_robot_mined_entity] = on_mined_entity,
+		[defines.events.on_player_mined_entity] = on_mined_entity
 	},
 	hotkey =
 	{

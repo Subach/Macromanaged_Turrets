@@ -44,7 +44,7 @@ local function on_player_left_game(event) --Close GUI and clear clipboard
 end
 
 local function on_player_selected_area(event) --Use the logistic turret remote to open the turret GUI
-	if event.item ~= _MOD.DEFINES.logic_turret.remote then
+	if event.item ~= _MOD.DEFINES.remote_control then
 		return
 	end
 	local id = event.player_index
@@ -85,13 +85,13 @@ local function on_player_selected_area(event) --Use the logistic turret remote t
 				break
 			end
 		end
-		globalCall("TurretGUI")[id] = {logicTurrets = logicTurrets, index = {}, cache = {}} --GUI metadata
+		globalCall("TurretGUI")[id] = {logicTurrets = logicTurrets, index = {}, cache = {}, classic = settings.get_player_settings(player)[mod_prefix.."use-classic-GUI"].value} --GUI metadata
 		_gui.open(id)
 	end
 end
 
 local function on_player_alt_selected_area(event) --Quick-paste mode
-	if event.item ~= _MOD.DEFINES.logic_turret.remote then
+	if event.item ~= _MOD.DEFINES.remote_control then
 		return
 	end
 	local id = event.player_index
@@ -111,12 +111,13 @@ local function on_player_alt_selected_area(event) --Quick-paste mode
 		return
 	end
 	local copied_turret, category, ammo, count, circuitry = clipboard.turret, clipboard.category, clipboard.ammo, clipboard.count, clipboard.circuitry --Clipboard contents
+	local mod_settings = player.mod_settings
 	local is_compatible = function() return false end
-	if _MOD.QUICKPASTE_MODE == _MOD.DEFINES.quickpaste_mode.ammo_category then
+	if mod_settings[mod_prefix.."quickpaste-mode"].value == _MOD.DEFINES.quickpaste_mode.ammo_category then
 		is_compatible = function(turret)
 			if _logistics.get_ammo_category(turret) == category then return true end
 		end
-	elseif _MOD.QUICKPASTE_MODE == _MOD.DEFINES.quickpaste_mode.turret_name then
+	elseif mod_settings[mod_prefix.."quickpaste-mode"].value == _MOD.DEFINES.quickpaste_mode.turret_name then
 		is_compatible = function(turret)
 			if turret == copied_turret then return true end
 		end
@@ -139,7 +140,7 @@ local function on_player_alt_selected_area(event) --Quick-paste mode
 				local logicTurret = _core.lookup_turret(entity)
 				if logicTurret ~= nil then
 					_gui.interrupt(entity) --Close this turret's GUI for all players
-					if circuitry ~= nil and _MOD.QUICKPASTE_BEHAVIOR then
+					if circuitry ~= nil and mod_settings[mod_prefix.."quickpaste-circuitry"].value then
 						_circuitry.set_circuitry(logicTurret, circuitry.mode, circuitry.wires)
 						if paste_data.bUnit == nil then
 							paste_data.bUnit = _gui.get_label(logicTurret, id)

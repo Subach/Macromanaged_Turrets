@@ -13,8 +13,8 @@ local function click_turret(id, gui, turret) --Switch turret list
 	if turret == current_turret then --Already selected
 		return
 	end
-	gui_element[mod_prefix.."turret-table"][mod_prefix..current_turret.."-turret-button"].style = mod_prefix.."gray" --Change the old turret's icon to gray
-	gui_element[mod_prefix.."turret-table"][mod_prefix..turret.."-turret-button"].style = mod_prefix.."orange" --Change the new turret's icon to orange
+	gui_element[mod_prefix.."turret-table"][mod_prefix..current_turret.."-turret-button"].style = _gui.get_button_style("gray", gui_data.classic) --Change the old turret's icon to gray
+	gui_element[mod_prefix.."turret-table"][mod_prefix..turret.."-turret-button"].style = _gui.get_button_style("orange", gui_data.classic) --Change the new turret's icon to orange
 	gui_element[mod_prefix.."control-flow"][mod_prefix.."index-label"].caption = gui_data.index[turret].."/"..#gui_data.logicTurrets[turret]
 	gui_data.turret = turret
 	_gui.show_control_panel(id, gui)
@@ -116,7 +116,6 @@ local function click_paste_behavior(id, gui) --Paste the control behavior settin
 	end
 	local gui_data, current_turret, current_index = _gui.get_data(id)
 	local circuitry = clipboard.circuitry --Clipboard contents
-	local circuit_panel = (gui.center[mod_prefix.."gui"][mod_prefix.."circuitry-frame"] ~= nil)
 	local paste_data =
 	{
 		bCount = 0,
@@ -129,7 +128,7 @@ local function click_paste_behavior(id, gui) --Paste the control behavior settin
 					gui_data.cache[turret][i] = {}
 				end
 				gui_data.cache[turret][i].circuitry = {mode = circuitry.mode, wires = {red = circuitry.wires.red, green = circuitry.wires.green}} --Add to cache
-				if circuit_panel and turret == current_turret and i == current_index then --Update the currently displayed turret if necessary
+				if turret == current_turret and i == current_index then --Update the currently displayed turret if necessary
 					_gui.show_circuit_panel(id, gui)
 				end
 				if paste_data.bUnit == nil then
@@ -146,17 +145,26 @@ end
 local function click_circuitry(id, gui) --Show or hide the circuit network panel
 	local gui_element = gui.center[mod_prefix.."gui"]
 	if gui_element[mod_prefix.."circuitry-frame"] ~= nil then
-		gui_element[mod_prefix.."circuitry-frame"].destroy()
+		if gui_element[mod_prefix.."circuitry-frame"].style.visible then
+			gui_element[mod_prefix.."circuitry-frame"].style.visible = false
+		else
+			gui_element[mod_prefix.."circuitry-frame"].style.visible = true
+		end
 		return
 	end
 	local gui_data, turret, index, cache = _gui.get_data(id)
 	local logicTurret = gui_data.logicTurrets[turret][index]
 	local circuitry = cache.circuitry or _circuitry.get_circuitry(logicTurret)
+	local network_list = _gui.get_network_list(logicTurret)
 	local circuit_frame = gui_element.add{type = "frame", name = mod_prefix.."circuitry-frame", direction = "vertical", style = "inner_frame_in_outer_frame_style", caption = {"gui-control-behavior.circuit-connection"}}
 		circuit_frame.style.font = "default-bold"
 		circuit_frame.style.minimal_width = 161
-		circuit_frame.add{type = "label", name = mod_prefix.."network-label", caption = _gui.get_network(logicTurret)}
-			circuit_frame[mod_prefix.."network-label"].style.font = "default-small-semibold"
+		circuit_frame.style.visible = true
+		local network_flow = circuit_frame.add{type = "flow", name = mod_prefix.."network-flow", direction = "vertical", style = "achievements_flow_style"}
+			for i = 1, #network_list do
+				local label = network_flow.add{type = "label", name = mod_prefix.."network-label-"..i, caption = network_list[i], single_line = true}
+					label.style.font = "default-small-semibold"
+			end
 		local mode_flow = circuit_frame.add{type = "flow", name = mod_prefix.."mode-flow", direction = "vertical", style = "slot_table_spacing_flow_style"}
 			mode_flow.add{type = "label", name = mod_prefix.."mode-label", style = "description_label_style", caption = {"gui-control-behavior.mode-of-operation"}}
 			local mode_table = mode_flow.add{type = "table", name = mod_prefix.."mode-table", style = "slot_table_style", colspan = 2}
@@ -211,7 +219,7 @@ local function click_save(id, gui) --Save the currently displayed request to be 
 		local count = tonumber(gui_element[mod_prefix.."request-flow"][mod_prefix.."count-field"].text)
 		if ammo == _MOD.DEFINES.blank_in_gui or count == nil or count < 1 then --Request slot will be cleared
 			if request ~= nil then
-				gui_element[mod_prefix.."ammo-table"][mod_prefix..request.name.."-ammo-button"].style = mod_prefix.."gray" --Change the old request's icon to gray
+				gui_element[mod_prefix.."ammo-table"][mod_prefix..request.name.."-ammo-button"].style = _gui.get_button_style("gray", gui_data.classic) --Change the old request's icon to gray
 			end
 			gui_element[mod_prefix.."request-flow"][mod_prefix.."count-field"].text = 0 --Update textfield
 			gui_data.cache[turret][index].request = {name = _MOD.DEFINES.blank_in_gui} --Add to cache
@@ -219,9 +227,9 @@ local function click_save(id, gui) --Save the currently displayed request to be 
 			local ammo_data = game.item_prototypes[ammo]
 			count = math.min(math.floor(count), ammo_data.stack_size) --Round down to the nearest whole number, maximum one stack
 			if request ~= nil then
-				gui_element[mod_prefix.."ammo-table"][mod_prefix..request.name.."-ammo-button"].style = mod_prefix.."gray" --Change the old request's icon to gray
+				gui_element[mod_prefix.."ammo-table"][mod_prefix..request.name.."-ammo-button"].style = _gui.get_button_style("gray", gui_data.classic) --Change the old request's icon to gray
 			end
-			gui_element[mod_prefix.."ammo-table"][mod_prefix..ammo.."-ammo-button"].style = mod_prefix.."orange" --Change the new request's icon to orange
+			gui_element[mod_prefix.."ammo-table"][mod_prefix..ammo.."-ammo-button"].style = _gui.get_button_style("orange", gui_data.classic) --Change the new request's icon to orange
 			gui_element[mod_prefix.."request-flow"][mod_prefix.."count-field"].text = count --Update textfield
 			gui_data.cache[turret][index].request = {name = ammo, count = count} --Add to cache
 			message = {"MMT.message.save", label, {"MMT.gui.item", ammo_data.localised_name, count}}
@@ -259,8 +267,8 @@ local function click_copy(id, gui) --Save the currently displayed request to the
 		end
 		message = {"MMT.message.combine", message, bMessage}
 	end
-	gui.player.print(message) --Display a message based on the result
 	_gui.show_control_panel(id, gui)
+	gui.player.print(message) --Display a message based on the result
 end
 
 local function click_ammo(id, gui, ammo) --Change the request icon to the selected ammo
@@ -306,10 +314,10 @@ local function click_wire(id, gui, wire) --Set the wires the turret will connect
 		gui_data.cache[turret][index].circuitry = {mode = circuitry.mode, wires = {red = circuitry.wires.red, green = circuitry.wires.green}}
 	end
 	if circuitry.wires[wire] then
-		gui_element[mod_prefix..wire.."-button"].style = mod_prefix.."gray"
+		gui_element[mod_prefix..wire.."-button"].style = _gui.get_button_style("gray", gui_data.classic)
 		gui_data.cache[turret][index].circuitry.wires[wire] = false --Add to cache
 	else
-		gui_element[mod_prefix..wire.."-button"].style = mod_prefix.."blue"
+		gui_element[mod_prefix..wire.."-button"].style = _gui.get_button_style("blue", gui_data.classic)
 		gui_data.cache[turret][index].circuitry.wires[wire] = true --Add to cache
 	end
 end

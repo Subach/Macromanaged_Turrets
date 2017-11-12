@@ -146,6 +146,15 @@ data.raw["gui-style"]["default"][MOD_PREFIX.."icon"] =
 	right_padding = 1,
 	bottom_padding = 1,
 	left_padding = 1,
+	default_graphical_set = sprite_button{x = 144, y = 48},
+	hovered_graphical_set = sprite_button{x = 180, y = 48},
+	clicked_graphical_set = sprite_button{x = 72, y = 48}
+}
+
+data.raw["gui-style"]["default"][MOD_PREFIX.."icon-classic"] =
+{
+	type = "button_style",
+	parent = MOD_PREFIX.."icon",
 	default_graphical_set = sprite_button{x = 0, y = 48},
 	hovered_graphical_set = sprite_button{x = 36, y = 48},
 	clicked_graphical_set = sprite_button{x = 72, y = 48}
@@ -164,6 +173,15 @@ data.raw["gui-style"]["default"][MOD_PREFIX.."gray"] =
 	right_padding = 1,
 	bottom_padding = 1,
 	left_padding = 1,
+	default_graphical_set = sprite_button{x = 144, y = 48},
+	hovered_graphical_set = sprite_button{x = 180, y = 48},
+	clicked_graphical_set = sprite_button{x = 72, y = 48}
+}
+
+data.raw["gui-style"]["default"][MOD_PREFIX.."gray-classic"] =
+{
+	type = "button_style",
+	parent = MOD_PREFIX.."gray",
 	default_graphical_set = sprite_button{x = 0, y = 48},
 	hovered_graphical_set = sprite_button{x = 36, y = 48},
 	clicked_graphical_set = sprite_button{x = 72, y = 48}
@@ -173,12 +191,30 @@ data.raw["gui-style"]["default"][MOD_PREFIX.."orange"] =
 {
 	type = "button_style",
 	parent = MOD_PREFIX.."gray",
+	default_graphical_set = sprite_button{x = 144, y = 12},
+	hovered_graphical_set = sprite_button{x = 180, y = 12},
+	clicked_graphical_set = sprite_button{x = 108, y = 84}
+}
+
+data.raw["gui-style"]["default"][MOD_PREFIX.."orange-classic"] =
+{
+	type = "button_style",
+	parent = MOD_PREFIX.."gray",
 	default_graphical_set = sprite_button{x = 108, y = 48},
 	hovered_graphical_set = sprite_button{x = 108, y = 84},
 	clicked_graphical_set = sprite_button{x = 108, y = 84}
 }
 
 data.raw["gui-style"]["default"][MOD_PREFIX.."blue"] =
+{
+	type = "button_style",
+	parent = MOD_PREFIX.."gray",
+	default_graphical_set = sprite_button{x = 144, y = 84},
+	hovered_graphical_set = sprite_button{x = 180, y = 84},
+	clicked_graphical_set = sprite_button{x = 72, y = 84}
+}
+
+data.raw["gui-style"]["default"][MOD_PREFIX.."blue-classic"] =
 {
 	type = "button_style",
 	parent = MOD_PREFIX.."gray",

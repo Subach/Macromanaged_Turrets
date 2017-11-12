@@ -26,14 +26,29 @@ local function get_sprite(gui, sprite) --Use a generic sprite if the object does
 	end
 end
 
-local function get_network(logicTurret) --Check if the turret is connected to a circuit network --TODO: Add network_id and support multiple networks in v0.15
+local function get_button_style(button, classic) --Get the old button style if classic mode is enabled
+	local style = mod_prefix..button
+	if classic then
+		style = style.."-classic"
+	end
+	return style
+end
+
+local function get_network_list(logicTurret) --Get a list of circuit networks the turret is connected to
 	local networks = logicTurret.components.interface.circuit_connected_entities
+	local network_list = {}
 	for wire, enabled in pairs(_circuitry.get_circuitry(logicTurret).wires) do
 		if enabled and #networks[wire] > 1 then
-			return {"gui-control-behavior.connected-to-network"}
+			local network = logicTurret.components.interface.get_circuit_network(defines.wire_type[wire])
+			if network ~= nil then
+				network_list[#network_list + 1] = {"MMT.gui.network-label", {"gui-control-behavior.connected-to-network"}, network.network_id}
+			end
 		end
 	end
-	return {"gui-control-behavior.not-connected"}
+	if #network_list < 1 then
+		network_list[1] = {"gui-control-behavior.not-connected"}
+	end
+	return network_list
 end
 
 local function get_wire_string(circuitry) --Returns a string detailing which wires are in use, or nil if none
@@ -110,15 +125,18 @@ end
 
 local function show_control_panel(id, gui) --Updates the paste icons according to the contents of the clipboard and currently selected turret
 	local gui_element = gui.center[mod_prefix.."gui"][mod_prefix.."logistics-flow"][mod_prefix.."navigation-flow"][mod_prefix.."control-flow"]
-	local turret = select(2, get_data(id))
+	local gui_data, turret = get_data(id)
 	local clipboard = globalCall("Clipboard")[id]
 	local turret_name = game.entity_prototypes[turret].localised_name
 	local padding = {76, 56, 37, 17} --1 button: 76, 2 buttons: 56, 3 buttons: 37, 4 buttons: 17
 	local width = 0 --Width depends on the number of buttons
-	if gui_element[mod_prefix.."panel-flow"] ~= nil then
-		gui_element[mod_prefix.."panel-flow"].destroy() --Remove the previous turret's options
+	local control_panel = gui_element[mod_prefix.."panel-flow"]
+	if control_panel ~= nil then
+		control_panel.clear() --Remove the previous turret's options
+		control_panel.style.left_padding = nil
+	else
+		control_panel = gui_element.add{type = "flow", name = mod_prefix.."panel-flow", direction = "horizontal", style = "slot_table_spacing_flow_style"}
 	end
-	local control_panel = gui_element.add{type = "flow", name = mod_prefix.."panel-flow", direction = "horizontal", style = "slot_table_spacing_flow_style"}
 	if clipboard ~= nil then
 		local category, ammo, count = clipboard.category, clipboard.ammo, clipboard.count --Clipboard contents
 		if ammo == _MOD.DEFINES.blank_in_gui or _logistics.get_ammo_category(turret) == category then --Current turret's ammo category matches the copied turret's
@@ -126,14 +144,14 @@ local function show_control_panel(id, gui) --Updates the paste icons according t
 			if ammo ~= _MOD.DEFINES.blank_in_gui then
 				tooltip = {"MMT.gui.paste-match", turret_name, {"MMT.gui.item", game.item_prototypes[ammo].localised_name, count}}
 			end
-			control_panel.add{type = "sprite-button", name = mod_prefix.."match-button", style = mod_prefix.."icon", sprite = mod_prefix.."paste-match", tooltip = tooltip}
+			control_panel.add{type = "sprite-button", name = mod_prefix.."match-button", style = get_button_style("icon", gui_data.classic), sprite = mod_prefix.."paste-match", tooltip = tooltip}
 			width = width + 1
 		end
 		local tooltip = {"MMT.gui.paste-all-empty"}
 		if ammo ~= _MOD.DEFINES.blank_in_gui then
 			tooltip = {"MMT.gui.paste-all", {"ammo-category-name."..category}, {"MMT.gui.item", game.item_prototypes[ammo].localised_name, count}}
 		end
-		control_panel.add{type = "sprite-button", name = mod_prefix.."all-button", style = mod_prefix.."icon", sprite = mod_prefix.."paste-all", tooltip = tooltip}
+		control_panel.add{type = "sprite-button", name = mod_prefix.."all-button", style = get_button_style("icon", gui_data.classic), sprite = mod_prefix.."paste-all", tooltip = tooltip}
 		width = width + 1
 	end
 	if gui.player.force.technologies["circuit-network"].researched then --Add circuit network buttons
@@ -146,10 +164,10 @@ local function show_control_panel(id, gui) --Updates the paste icons according t
 					tooltip = {"MMT.gui.paste-behavior", turret_name, {"MMT.gui.mode", {"MMT.gui.mode-"..circuitry.mode}, {"MMT.gui.wire-"..wires}}}
 				end
 			end
-			control_panel.add{type = "sprite-button", name = mod_prefix.."behavior-button", style = mod_prefix.."icon", sprite = mod_prefix.."paste-behavior", tooltip = tooltip}
+			control_panel.add{type = "sprite-button", name = mod_prefix.."behavior-button", style = get_button_style("icon", gui_data.classic), sprite = mod_prefix.."paste-behavior", tooltip = tooltip}
 			width = width + 1
 		end
-		control_panel.add{type = "sprite-button", name = mod_prefix.."circuitry-button", style = mod_prefix.."icon", sprite = mod_prefix.."circuitry", tooltip = {"gui-control-behavior.circuit-network"}}
+		control_panel.add{type = "sprite-button", name = mod_prefix.."circuitry-button", style = get_button_style("icon", gui_data.classic), sprite = mod_prefix.."circuitry", tooltip = {"gui-control-behavior.circuit-network"}}
 		width = width + 1
 	end
 	control_panel.style.left_padding = padding[width] --Padding depends on the number of buttons to keep GUI the same width
@@ -159,12 +177,6 @@ local function show_wires(id, gui) --Show, hide, or update the curret turret's w
 	local gui_element = gui.center[mod_prefix.."gui"][mod_prefix.."circuitry-frame"]
 	local gui_data, turret, index, cache = get_data(id)
 	local circuitry = cache.circuitry or _circuitry.get_circuitry(gui_data.logicTurrets[turret][index])
-	if circuitry.mode == _MOD.DEFINES.circuit_mode.off then
-		if gui_element[mod_prefix.."connect-flow"] ~= nil then
-			gui_element[mod_prefix.."connect-flow"].destroy()
-		end
-		return
-	end
 	local red_style = "gray"
 	local green_style = "gray"
 	if circuitry.wires.red then
@@ -174,16 +186,18 @@ local function show_wires(id, gui) --Show, hide, or update the curret turret's w
 		green_style = "blue"
 	end
 	if gui_element[mod_prefix.."connect-flow"] ~= nil then
-		gui_element[mod_prefix.."connect-flow"][mod_prefix.."wire-flow"][mod_prefix.."red-button"].style = mod_prefix..red_style
-		gui_element[mod_prefix.."connect-flow"][mod_prefix.."wire-flow"][mod_prefix.."green-button"].style = mod_prefix..green_style
-	else
-		local connect_flow = gui_element.add{type = "flow", name = mod_prefix.."connect-flow", direction = "vertical", style = "table_spacing_flow_style"}
-			connect_flow.style.minimal_height = 58
-			connect_flow.add{type = "label", name = mod_prefix.."connect-label", style = "description_label_style", caption = {"MMT.gui.connect"}, tooltip = {"MMT.gui.connect-description"}}
-			local wire_flow = connect_flow.add{type = "flow", name = mod_prefix.."wire-flow", direction = "horizontal", style = "slot_table_spacing_flow_style"}
-				wire_flow.add{type = "sprite-button", name = mod_prefix.."red-button", style = mod_prefix..red_style, sprite = "item/red-wire", tooltip = {"item-name.red-wire"}}
-				wire_flow.add{type = "sprite-button", name = mod_prefix.."green-button", style = mod_prefix..green_style, sprite = "item/green-wire", tooltip = {"item-name.green-wire"}}
+		gui_element[mod_prefix.."connect-flow"].style.visible = (circuitry.mode ~= _MOD.DEFINES.circuit_mode.off)
+		gui_element[mod_prefix.."connect-flow"][mod_prefix.."wire-flow"][mod_prefix.."red-button"].style = get_button_style(red_style, gui_data.classic)
+		gui_element[mod_prefix.."connect-flow"][mod_prefix.."wire-flow"][mod_prefix.."green-button"].style = get_button_style(green_style, gui_data.classic)
+		return
 	end
+	local connect_flow = gui_element.add{type = "flow", name = mod_prefix.."connect-flow", direction = "vertical", style = "table_spacing_flow_style"}
+		connect_flow.style.minimal_height = 58
+		connect_flow.style.visible = (circuitry.mode ~= _MOD.DEFINES.circuit_mode.off)
+		connect_flow.add{type = "label", name = mod_prefix.."connect-label", style = "description_label_style", caption = {"MMT.gui.connect"}, tooltip = {"MMT.gui.connect-description"}}
+		local wire_flow = connect_flow.add{type = "flow", name = mod_prefix.."wire-flow", direction = "horizontal", style = "slot_table_spacing_flow_style"}
+			wire_flow.add{type = "sprite-button", name = mod_prefix.."red-button", style = get_button_style(red_style, gui_data.classic), sprite = "item/red-wire", tooltip = {"item-name.red-wire"}}
+			wire_flow.add{type = "sprite-button", name = mod_prefix.."green-button", style = get_button_style(green_style, gui_data.classic), sprite = "item/green-wire", tooltip = {"item-name.green-wire"}}
 end
 
 local function show_circuit_panel(id, gui) --Show the current turret's circuitry panel
@@ -194,7 +208,12 @@ local function show_circuit_panel(id, gui) --Show the current turret's circuitry
 	local gui_data, turret, index, cache = get_data(id)
 	local logicTurret = gui_data.logicTurrets[turret][index]
 	local circuitry = cache.circuitry or _circuitry.get_circuitry(logicTurret)
-	gui_element[mod_prefix.."network-label"].caption = get_network(logicTurret)
+	local network_list = get_network_list(logicTurret)
+	gui_element[mod_prefix.."network-flow"].clear()
+	for i = 1, #network_list do
+		local label = gui_element[mod_prefix.."network-flow"].add{type = "label", name = mod_prefix.."network-label-"..i, caption = network_list[i]}
+			label.style.font = "default-small-semibold"
+	end
 	gui_element[mod_prefix.."mode-flow"][mod_prefix.."mode-table"][mod_prefix.._MOD.DEFINES.circuit_mode.off.."-button"].sprite = ""
 	gui_element[mod_prefix.."mode-flow"][mod_prefix.."mode-table"][mod_prefix.._MOD.DEFINES.circuit_mode.send_contents.."-button"].sprite = ""
 	gui_element[mod_prefix.."mode-flow"][mod_prefix.."mode-table"][mod_prefix.._MOD.DEFINES.circuit_mode.set_requests.."-button"].sprite = ""
@@ -207,19 +226,21 @@ local function show_ammo_table(id, gui) --Shows the list of ammo the current tur
 	local gui_data, turret, index, cache = get_data(id)
 	local request = cache.request or _logistics.get_request(gui_data.logicTurrets[turret][index])
 	local ammo_list = _logistics.get_ammo_list(turret) --The list of ammo the turret can use
-	if gui_element[mod_prefix.."ammo-table"] ~= nil then
-		gui_element[mod_prefix.."ammo-table"].destroy() --Remove the previous turret's list
+	local ammo_table = gui_element[mod_prefix.."ammo-table"]
+	if ammo_table ~= nil then
+		ammo_table.clear() --Remove the previous turret's list
+	else
+		ammo_table = gui_element.add{type = "table", name = mod_prefix.."ammo-table", style = "slot_table_style", colspan = 5}
 	end
-	local ammo_table = gui_element.add{type = "table", name = mod_prefix.."ammo-table", style = "slot_table_style", colspan = 5}
-		ammo_table.add{type = "sprite-button", name = mod_prefix.._MOD.DEFINES.blank_in_gui.."-ammo-button", style = mod_prefix.."gray", tooltip = {"MMT.gui.empty"}} --Blank request
-		for i = 1, #ammo_list do
-			local ammo = ammo_list[i]
-			local style = "gray"
-			if request ~= nil and ammo == request.name then --Highlight current request
-				style = "orange"
-			end
-			ammo_table.add{type = "sprite-button", name = mod_prefix..ammo.."-ammo-button", style = mod_prefix..style, sprite = get_sprite(gui, "item/"..ammo), tooltip = game.item_prototypes[ammo].localised_name}
+	ammo_table.add{type = "sprite-button", name = mod_prefix.._MOD.DEFINES.blank_in_gui.."-ammo-button", style = get_button_style("gray", gui_data.classic), tooltip = {"MMT.gui.empty"}} --Blank request
+	for i = 1, #ammo_list do
+		local ammo = ammo_list[i]
+		local style = "gray"
+		if request ~= nil and ammo == request.name then --Highlight current request
+			style = "orange"
 		end
+		ammo_table.add{type = "sprite-button", name = mod_prefix..ammo.."-ammo-button", style = get_button_style(style, gui_data.classic), sprite = get_sprite(gui, "item/"..ammo), tooltip = game.item_prototypes[ammo].localised_name}
+	end
 end
 
 local function show_request(id, gui) --Show the current turret's request
@@ -297,7 +318,7 @@ local function open(id) --Create the GUI
 						if turret == gui_data.turret then --Highlight current turret
 							style = "orange"
 						end
-						turret_table.add{type = "sprite-button", name = mod_prefix..turret.."-turret-button", style = mod_prefix..style, sprite = get_sprite(gui, "entity/"..turret), tooltip = tooltip}
+						turret_table.add{type = "sprite-button", name = mod_prefix..turret.."-turret-button", style = get_button_style(style, gui_data.classic), sprite = get_sprite(gui, "entity/"..turret), tooltip = tooltip}
 					end
 			local turret = gui_data.turret
 				local control_flow = nav_frame.add{type = "flow", name = mod_prefix.."control-flow", direction = "horizontal", style = "achievements_flow_style"}
@@ -319,16 +340,17 @@ local function open(id) --Create the GUI
 			end
 			local turret_frame = logistic_flow.add{type = "frame", name = mod_prefix.."turret-frame", direction = "vertical"}
 				turret_frame.style.minimal_width = 188
-				local turret_label = turret_frame.add{type = "label", name = mod_prefix.."turret-label", style = "description_label_style", caption = get_label(logicTurret, id), tooltip = {"gui-edit-label.edit-label"}}
+				local turret_label = turret_frame.add{type = "label", name = mod_prefix.."turret-label", style = "description_label_style", caption = get_label(logicTurret, id), tooltip = {"gui-edit-label.edit-label"}, single_line = true}
+					turret_label.want_ellipsis = true
 					turret_label.style.minimal_width = 167
 					turret_label.style.maximal_width = 167
 				local request_flow = turret_frame.add{type = "flow", name = mod_prefix.."request-flow", direction = "horizontal"}
-					request_flow.add{type = "sprite-button", name = mod_prefix.."item-button", style = mod_prefix.."gray", caption = caption, sprite = sprite, tooltip = tooltip}
+					request_flow.add{type = "sprite-button", name = mod_prefix.."item-button", style = get_button_style("gray", gui_data.classic), caption = caption, sprite = sprite, tooltip = tooltip}
 					request_flow.add{type = "textfield", name = mod_prefix.."count-field", text = count}
 						request_flow[mod_prefix.."count-field"].style.minimal_width = 54
 					local cache_flow = request_flow.add{type = "flow", name = mod_prefix.."cache-flow", direction = "horizontal", style = "slot_table_spacing_flow_style"}
-						cache_flow.add{type = "sprite-button", name = mod_prefix.."save-button", style = mod_prefix.."gray", sprite = mod_prefix.."save", tooltip = {"gui-save-game.save"}}
-						cache_flow.add{type = "sprite-button", name = mod_prefix.."copy-button", style = mod_prefix.."gray", sprite = mod_prefix.."copy", tooltip = {"MMT.gui.copy"}}
+						cache_flow.add{type = "sprite-button", name = mod_prefix.."save-button", style = get_button_style("gray", gui_data.classic), sprite = mod_prefix.."save", tooltip = {"gui-save-game.save"}}
+						cache_flow.add{type = "sprite-button", name = mod_prefix.."copy-button", style = get_button_style("gray", gui_data.classic), sprite = mod_prefix.."copy", tooltip = {"MMT.gui.copy"}}
 			show_ammo_table(id, gui)
 end
 
@@ -409,9 +431,10 @@ return
 	destroy = destroy,
 	interrupt = interrupt,
 	compose_message = compose_message,
+	get_button_style = get_button_style,
 	get_data = get_data,
 	get_label = get_label,
-	get_network = get_network,
+	get_network_list = get_network_list,
 	get_sprite = get_sprite,
 	get_wire_string = get_wire_string,
 	rename_turret = rename_turret,

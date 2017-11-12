@@ -252,7 +252,7 @@ local function remote_control(force, enable)
 		end
 		if force.valid and force == phorce then
 			if enable == true and not _core.is_remote_enabled(force) then
-				force.recipes[_MOD.DEFINES.logic_turret.remote].enabled = true
+				force.recipes[_MOD.DEFINES.remote_control].enabled = true
 				_core.awaken_dormant_turrets(name)
 			end
 			return _core.is_remote_enabled(force)
