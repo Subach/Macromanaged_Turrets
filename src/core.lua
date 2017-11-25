@@ -131,7 +131,7 @@ local function add_components(turret) --Create a logistic turret
 					entity.destroy()
 				end
 			end
-			return --Early out if a component failed to create
+			return --Abort the logistic turret if a component failed to spawn
 		end
 		component.active = false
 		component.destructible = false

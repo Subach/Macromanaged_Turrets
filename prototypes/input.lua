@@ -10,6 +10,6 @@ data:extend(
 		type = "custom-input",
 		name = MOD_PREFIX.."select-remote",
 		key_sequence = "SHIFT + R",
-		consuming = "all"
+		consuming = "game-only"
 	}
 })

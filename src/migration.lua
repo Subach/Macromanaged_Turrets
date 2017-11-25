@@ -8,7 +8,23 @@ local globalCall = _util.globalCall
 local _migration = {}
 
 _migration["1.1.6"] = function()
---TODO: logicTurret.magazine vs. logicTurret.inventory.magazine
+	for id, logicTurret in pairs(globalCall("LogicTurrets")) do
+		if _core.get_valid_turret(logicTurret) then
+			local turret = logicTurret.entity
+			local memory = turret.surface.create_entity{name = _MOD.DEFINES.logic_turret.memory, position = turret.position, force = turret.force}
+			if memory ~= nil and memory.valid then
+				memory.active = false
+				memory.destructible = false
+				memory.operable = false
+				logicTurret.components.memory = memory
+			else
+				_core.clear_ammo(logicTurret)
+				_core.destroy_components(logicTurret)
+			end
+			logicTurret.magazine = logicTurret.inventory.magazine
+			logicTurret.inventory.magazine = nil
+		end
+	end
 end
 
 _migration["1.1.4"] = function()
@@ -78,11 +94,9 @@ _migration["1.1.4"] = function()
 end
 
 _migration["1.1.0"] = function()
-	local lists = {globalCall("LogicTurrets"), global.IdleLogicTurrets}
-	for i = 1, #lists do
-		local turret_list = lists[i]
-		for j = #turret_list, 1, -1 do
-			local logicTurret = turret_list[j]
+	for _, turret_list in pairs({globalCall("LogicTurrets"), global.IdleLogicTurrets}) do
+		for i = #turret_list, 1, -1 do
+			local logicTurret = turret_list[i]
 			local turret = logicTurret[1]
 			local chest = logicTurret[2]
 			if chest.valid then

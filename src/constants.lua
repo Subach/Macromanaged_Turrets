@@ -3,7 +3,6 @@ local l, p = "MIT License", "MMT-"
 local m, s = "Macros", "Subach"
 local config = (type(require("config")) == "table") and require("config") or {}
 local interval = settings.global[p.."tick-interval"].value
---local time_factor = math.min(settings.global[p.."time-factor"].value, math.floor(interval / 2)) --TODO: desync
 return { _NAME = n, _VERSION = v, _LICENSE = l, _AUTHOR = {name = m, alias = s},
 	DEFINES =
 	{
@@ -57,16 +56,7 @@ return { _NAME = n, _VERSION = v, _LICENSE = l, _AUTHOR = {name = m, alias = s},
 		},
 		remote_control = p.."logistic-turret-remote"
 	},
---[[ --TODO: desync
-	ACTIVE_TIMER = math.max(math.floor(900 / interval), 1),
-	ACTIVE_INTERVAL = math.max(math.floor(interval / time_factor), 1),
-	IDLE_INTERVAL = math.max(math.floor(interval / time_factor), 1) * 5,
-	UPDATE_INTERVAL = time_factor,
-	UPDATE_TICK = time_factor - 1,
---]]
 	ACTIVE_INTERVAL = interval,
 	IDLE_INTERVAL = interval * 5,
 	ACTIVE_TIMER = math.max(math.floor(900 / interval), 1),
-	USE_BOBS_DEFAULT = config.UseBobsDefault == true,
-	BOBS_DEFAULT = config.BobsDefault or "empty",
 	LOGISTIC_TURRETS = (type(config.LogisticTurrets) == "table") and config.LogisticTurrets or {} }

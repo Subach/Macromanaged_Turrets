@@ -276,6 +276,7 @@ local function check_config() --Compile a list of all valid config entries
 				turret_list[turret] = turret_list[turret] or config
 			end
 		end
+--[[ --TODO: config GUI
 		if _MOD.USE_BOBS_DEFAULT and game.active_mods["bobwarfare"] ~= nil then --Gather Bob's turrets
 			for turret, entity in pairs(game.entity_prototypes) do
 				if entity.type == "ammo-turret" and _util.string_starts_with(turret, "bob-") then --Find turrets with names prefixed by "bob-"
@@ -283,6 +284,7 @@ local function check_config() --Compile a list of all valid config entries
 				end
 			end
 		end
+--]]
 		for turret, config in pairs(turret_list) do --Screen the list for new, updated, and invalid entries
 			turret_list[turret], new_turrets[turret], updated_turrets[turret] = validate_config(turret, config)
 		end

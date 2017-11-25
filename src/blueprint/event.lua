@@ -36,7 +36,8 @@ local function on_entity_died(logicTurret) --Save this turret's ghost data for w
 	end
 end
 
-local function on_built_entity(entity) --Set ghost data when a blueprint is stamped down
+local function on_built_entity(event) --Set ghost data when a blueprint is stamped down
+	local entity = event.created_entity
 	if entity.name ~= "entity-ghost" or not (entity.ghost_name == _MOD.DEFINES.logic_turret.chest or entity.ghost_name == _MOD.DEFINES.logic_turret.memory) then
 		return
 	end
@@ -48,7 +49,8 @@ local function on_built_entity(entity) --Set ghost data when a blueprint is stam
 	end
 end
 
-local function on_mined_entity(entity) --Remove ghost data when a ghost is mined
+local function on_mined_entity(event) --Remove ghost data when a ghost is mined
+	local entity = event.entity
 	if entity.name ~= "entity-ghost" or globalCall("LogicTurretConfig")[entity.ghost_name] == nil then
 		return
 	end
@@ -79,8 +81,8 @@ local function on_player_selected_area(event) --Add selected turrets to the wire
 	_blueprint.queue_wire_update(turret_list)
 end
 
-local function on_selected_entity_changed(id) --Add selected turret to the wire update queue
-	local player = get_player(id)
+local function on_selected_entity_changed(event) --Add selected turret to the wire update queue
+	local player = get_player(event.player_index)
 	if player == nil then
 		return
 	end

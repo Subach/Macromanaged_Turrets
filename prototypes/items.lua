@@ -42,7 +42,7 @@ data:extend(
 	{
 		type = "item",
 		name = MOD_PREFIX.."logistic-turret-chest",
-		icon = MOD_GFX.."chest.png",
+		icon = MOD_GFX.."module.png",
 		icon_size = 32,
 		flags = {"goes-to-main-inventory", "hidden"},
 		place_result = MOD_PREFIX.."logistic-turret-chest",
@@ -52,7 +52,7 @@ data:extend(
 	{
 		type = "item",
 		name = MOD_PREFIX.."logistic-turret-memory",
-		icon = MOD_GFX.."chest.png",
+		icon = MOD_GFX.."module.png",
 		icon_size = 32,
 		flags = {"goes-to-main-inventory", "hidden"},
 		place_result = MOD_PREFIX.."logistic-turret-memory",

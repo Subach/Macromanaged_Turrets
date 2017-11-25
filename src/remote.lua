@@ -56,7 +56,7 @@ local function change_request_slot(turret, ammo, count)
 	if logicTurret == nil then return false end
 	if _circuitry.get_circuitry(logicTurret).mode ~= _MOD.DEFINES.circuit_mode.set_requests then
 		if ammo == nil or ammo == _MOD.DEFINES.blank_request or (count ~= nil and type(count) == "number" and count < 1) then
-			_gui.interrupt(turret)
+			_gui.control.interrupt(turret)
 			_logistics.set_request(logicTurret, _MOD.DEFINES.blank_request)
 			return true
 		elseif type(ammo) == "string" then
@@ -67,7 +67,7 @@ local function change_request_slot(turret, ammo, count)
 				else
 					count = ammo_data.stack_size
 				end
-				_gui.interrupt(turret)
+				_gui.control.interrupt(turret)
 				_logistics.set_request(logicTurret, {ammo = ammo, count = count})
 				return count
 			end
@@ -101,7 +101,7 @@ local function change_circuit_mode(turret, mode, wires)
 		else
 			wires = {red = false, green = false}
 		end
-		_gui.interrupt(turret)
+		_gui.control.interrupt(turret)
 		_circuitry.set_circuitry(logicTurret, mode, wires)
 		return true
 	end
@@ -137,7 +137,7 @@ local function change_custom_label(turret, player, label)
 					label = nil
 				end
 			end
-			_gui.destroy(id)
+			_gui.control.destroy(id)
 			logicTurret.labels[id] = label
 			return (label or true)
 		end
@@ -268,7 +268,7 @@ local function reset_mod()
 	globalCall("GhostData", "BlueWire").Tick = 1
 	global.ActiveCounter = 1
 	global.IdleCounter = 1
-	_gui.destroy(player.index)
+	_gui.control.destroy(player.index)
 	_loader.sort_ammo_types()
 	_loader.reload_tech()
 	_loader.fix_components()

@@ -53,13 +53,6 @@ local function process_idle_turret(logicTurret) --Move unwanted ammo to the bin
 end
 
 local function on_tick(event) --Controls the behavior of logistic turrets
---[[ --TODO: desync
-	local tick = event.tick
-	local ghosts = ghost_handler(tick)
-	if tick % _MOD.UPDATE_INTERVAL ~= _MOD.UPDATE_TICK then
-		return
-	end
---]]
 	local active_turrets = global.TurretArrays.Active
 	local idle_turrets = global.TurretArrays.Idle
 	local aIndex = #active_turrets

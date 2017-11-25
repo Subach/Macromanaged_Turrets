@@ -10,6 +10,10 @@ local function on_gui_click(event) --Perform GUI functions
 	_gui:handler(event.name, event)
 end
 
+local function on_gui_checked_state_changed(event) --TODO:
+	
+end
+
 local function on_entity_died(event) --Remove turret from the logistic turret list and destroy its internal components
 	local entity = event.entity
 	if entity == nil or not entity.valid or globalCall("LogicTurretConfig")[entity.name] == nil then
@@ -17,7 +21,7 @@ local function on_entity_died(event) --Remove turret from the logistic turret li
 	end
 	local logicTurret = _core.lookup_turret(entity)
 	if logicTurret ~= nil then
-		_gui.interrupt(entity) --Close this turret's GUI for all players
+		_gui.control.interrupt(entity) --Close this turret's GUI for all players
 		_blueprint:handler(event.name, logicTurret)
 		_core.destroy_components(logicTurret) --Remove from the logistic turret lists
 	end
@@ -31,7 +35,7 @@ local function on_built_entity(event) --Add turret to the logistic turret list
 	if globalCall("LogicTurretConfig")[entity.name] ~= nil then
 		_core.add_components(entity) --Create logistic turret
 	end
-	_blueprint:handler(event.name, entity)
+	_blueprint:handler(event.name, event)
 end
 
 local function on_mined_entity(event) --Remove turret from the logistic turret list, handle any leftover ammo, and destroy its internal components
@@ -48,7 +52,7 @@ local function on_mined_entity(event) --Remove turret from the logistic turret l
 			end
 			return
 		end
-		_gui.interrupt(logicTurret.entity) --Close this turret's GUI for all players
+		_gui.control.interrupt(logicTurret.entity) --Close this turret's GUI for all players
 		local buffer = event.buffer
 		if buffer ~= nil and buffer.valid then
 			for _, item in pairs(logicTurret.inventory) do
@@ -62,7 +66,7 @@ local function on_mined_entity(event) --Remove turret from the logistic turret l
 			_core.destroy_components(logicTurret) --Remove from the logistic turret lists
 		end
 	end
-	_blueprint:handler(event.name, entity)
+	_blueprint:handler(event.name, event)
 end
 
 local function on_research_finished(event) --Awaken dormant turrets when the logistic system is researched
@@ -92,7 +96,7 @@ local function on_marked_for_deconstruction(event) --Clear the chest's request s
 	end
 	local logicTurret = _core.lookup_turret(entity)
 	if logicTurret ~= nil then
-		_gui.interrupt(entity) --Close this turret's GUI for all players
+		_gui.control.interrupt(entity) --Close this turret's GUI for all players
 		_logistics.set_request(logicTurret, _MOD.DEFINES.blank_request)
 		_logistics.request_override(logicTurret, true) --Set override flag
 	end
@@ -143,7 +147,7 @@ local function on_forces_merging(event) --Migrate or awaken dormant turrets
 end
 
 local function on_pre_player_died(event) --Close the turret GUI when a player dies
-	_gui:handler(event.name, event.player_index)
+	_gui:handler(event.name, event)
 end
 
 local function on_player_left_game(event) --Close the turret GUI and clear the clipboard when a player leaves the game
@@ -155,8 +159,29 @@ local function on_player_selected_area(event) --Use the logistic turret remote t
 	_blueprint:handler(event.name, event)
 end
 
+local function on_selected_entity_changed(event) --Add selected turret to the wire update queue
+	_blueprint:handler(event.name, event)
+end
+
+local function on_gui_selection_state_changed(event) --TODO:
+	
+end
+
+local function on_runtime_mod_setting_changed(event) --Update mod settings
+	if event.setting == _MOD.DEFINES.prefix.."tick-interval" then
+		local interval = settings.global[_MOD.DEFINES.prefix.."tick-interval"].value
+		_MOD.ACTIVE_INTERVAL = interval
+		_MOD.IDLE_INTERVAL = interval * 5
+		_MOD.ACTIVE_TIMER = math.max(math.floor(900 / interval), 1)
+	end
+end
+
+local function on_player_removed(event) --Close all player's GUIs and delete all clipboard data
+	_gui:handler(event.name, event)
+end
+
 local function on_custom_input_close_gui(event) --Close the turret GUI
-	_gui:handler(event.input_name, event.player_index)
+	_gui:handler(event.input_name, event)
 end
 
 local function on_custom_input_select_remote(event) --Equip or stow the logistic turret remote
@@ -173,33 +198,12 @@ local function on_custom_input_select_remote(event) --Equip or stow the logistic
 	end
 end
 
-local function on_selected_entity_changed(event) --Add selected turret to the wire update queue
-	_blueprint:handler(event.name, event.player_index)
-end
-
-local function on_runtime_mod_setting_changed(event) --Update mod settings
-	local setting = event.setting
-	if setting == _MOD.DEFINES.prefix.."tick-interval" --[[ or setting == _MOD.DEFINES.prefix.."time-factor" --]] then
-		local interval = settings.global[_MOD.DEFINES.prefix.."tick-interval"].value
---[[ --TODO: desync
-		local time_factor = math.min(settings.global[_MOD.DEFINES.prefix.."time-factor"].value, math.floor(interval / 2))
-		_MOD.ACTIVE_INTERVAL = math.max(math.floor(interval / time_factor), 1)
-		_MOD.IDLE_INTERVAL = math.max(math.floor(interval / time_factor), 1) * 5
-		_MOD.ACTIVE_TIMER = math.max(math.floor(900 / interval), 1)
-		_MOD.UPDATE_INTERVAL = time_factor
-		_MOD.UPDATE_TICK = time_factor - 1
---]]
-		_MOD.ACTIVE_INTERVAL = interval
-		_MOD.IDLE_INTERVAL = interval * 5
-		_MOD.ACTIVE_TIMER = math.max(math.floor(900 / interval), 1)
-	end
-end
-
 return
 {
 	dispatch =
 	{
 		[defines.events.on_gui_click] = on_gui_click,
+		[defines.events.on_gui_checked_state_changed] = on_gui_checked_state_changed,
 		[defines.events.on_entity_died] = on_entity_died,
 		[defines.events.on_built_entity] = on_built_entity,
 		[defines.events.on_robot_built_entity] = on_built_entity,
@@ -212,9 +216,14 @@ return
 		[defines.events.on_player_selected_area] = on_player_selected_area,
 		[defines.events.on_player_alt_selected_area] = on_player_selected_area,
 		[defines.events.on_selected_entity_changed] = on_selected_entity_changed,
+		[defines.events.on_gui_selection_state_changed] = on_gui_selection_state_changed,
 		[defines.events.on_runtime_mod_setting_changed] = on_runtime_mod_setting_changed,
 		[defines.events.on_robot_mined_entity] = on_mined_entity,
-		[defines.events.on_player_mined_entity] = on_mined_entity
+		[defines.events.on_player_mined_entity] = on_mined_entity,
+		[defines.events.on_player_removed] = on_player_removed,
+		[defines.events.script_raised_built] = on_built_entity,
+		[defines.events.script_raised_destroy] = on_entity_died,
+		[defines.events.script_raised_revive] = on_built_entity
 	},
 	hotkey =
 	{
